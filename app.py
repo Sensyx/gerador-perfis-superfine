@@ -99,7 +99,10 @@ else:
         
         # Ângulo e Linha de Centro
         ax.plot([0, 0], [-offset*0.5, altura + offset*0.5], color='gray', lw=0.8, ls='-.') # Linha de simetria
-        ax.text(largura/4, altura/2, f'({angulo_graus:.2f}°)', ha='left', va='center', fontsize=10)
+        
+        # O cálculo (largura/4) + (offset*0.3) joga o texto para a direita, fora da zona de colisão da rampa
+        posicao_x_angulo = (largura / 4) + (offset * 0.3)
+        ax.text(posicao_x_angulo, altura/2, f'({angulo_graus:.2f}°)', ha='left', va='center', fontsize=10)
 
         # --- QUADRO TÉCNICO INSERIDO NO PDF ---
         texto_carimbo = (
