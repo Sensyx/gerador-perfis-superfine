@@ -135,7 +135,7 @@ else:
         ax.set_aspect('equal')
         
         offset = max(largura_total, altura) * 0.15 
-        ax.set_xlim(-largura_total/2 - offset*3, largura_total/2 + offset*4.5)
+        ax.set_xlim(-largura_total/2 - offset*2.5, largura_total/2 + offset*3)
         ax.set_ylim(-offset, altura + offset*1.5)
         
         # Linha de Centro
@@ -146,63 +146,70 @@ else:
         ax.plot([-x_cc, x_cc], [y_cc, y_cc], marker='+', color='#ff00ff', markersize=8, ls='None')
         ax.plot([0], [raio_base], marker='+', color='#ff00ff', markersize=8, ls='None')
 
-        # --- COTAS LINEARES ---
-        # Largura Total (Extremidades)
-        ax.plot([-largura_total/2, -largura_total/2], [altura, altura + offset*0.6], color='green', lw=0.8, ls='-')
-        ax.plot([largura_total/2, largura_total/2], [altura, altura + offset*0.6], color='green', lw=0.8, ls='-')
+        # --- COTAS LINEARES (Aproximadas da peça) ---
+        # Largura Total
+        ax.plot([-largura_total/2, -largura_total/2], [altura, altura + offset*0.5], color='green', lw=0.8, ls='-')
+        ax.plot([largura_total/2, largura_total/2], [altura, altura + offset*0.5], color='green', lw=0.8, ls='-')
         ax.annotate('', xy=(-largura_total/2, altura + offset*0.4), xytext=(largura_total/2, altura + offset*0.4),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
         ax.text(0, altura + offset*0.5, f'{largura_total:.2f}', ha='center', va='bottom', fontsize=10, color='green')
 
-        # Altura Total
-        ax.plot([x_tr + 0.5, largura_total/2 + offset*1.5], [altura, altura], color='green', lw=0.8, ls='-')
-        ax.plot([0.5, largura_total/2 + offset*1.5], [0, 0], color='green', lw=0.8, ls='-')
-        ax.annotate('', xy=(largura_total/2 + offset*1.2, 0), xytext=(largura_total/2 + offset*1.2, altura),
+        # Altura Total (10.60) - Movida para a esquerda (offset*0.8)
+        ax.plot([x_tr + 0.5, largura_total/2 + offset*0.8], [altura, altura], color='green', lw=0.8, ls='-')
+        ax.plot([0.5, largura_total/2 + offset*0.8], [0, 0], color='green', lw=0.8, ls='-')
+        ax.annotate('', xy=(largura_total/2 + offset*0.6, 0), xytext=(largura_total/2 + offset*0.6, altura),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
-        ax.text(largura_total/2 + offset*1.4, altura/2, f'{altura:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
+        ax.text(largura_total/2 + offset*0.8, altura/2, f'{altura:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
 
-        # Altura Conexão 1.71
-        ax.plot([-x_tr - 0.5, -largura_total/2 - offset*1.5], [altura, altura], color='green', lw=0.8, ls='-')
-        ax.plot([-x_cc - 0.5, -largura_total/2 - offset*1.5], [y_cc, y_cc], color='green', lw=0.8, ls='-')
-        ax.annotate('', xy=(-largura_total/2 - offset*1.2, y_cc), xytext=(-largura_total/2 - offset*1.2, altura),
+        # Altura Conexão 1.71 - Movida para a direita (offset*0.8)
+        ax.plot([-x_tr - 0.5, -largura_total/2 - offset*0.8], [altura, altura], color='green', lw=0.8, ls='-')
+        ax.plot([-x_cc - 0.5, -largura_total/2 - offset*0.8], [y_cc, y_cc], color='green', lw=0.8, ls='-')
+        ax.annotate('', xy=(-largura_total/2 - offset*0.6, y_cc), xytext=(-largura_total/2 - offset*0.6, altura),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
-        ax.text(-largura_total/2 - offset*1.4, (altura + y_cc)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+        ax.text(-largura_total/2 - offset*0.8, (altura + y_cc)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
 
-        # Raios
-        ax.annotate(f'R{raio_topo:.2f}', xy=(-x_tr, y_tr+raio_topo), xytext=(-largura_total/2 - offset, altura + offset*0.2),
+        # --- INDICAÇÕES DE RAIO (Apontando para as cruzes rosas) ---
+        ax.annotate(f'R{raio_topo:.2f}', xy=(-x_tr, y_tr), xytext=(-largura_total/2 - offset*1.0, y_tr + offset*0.4),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-        ax.annotate(f'R{raio_conn:.2f}', xy=(-x_cc+raio_conn, y_cc), xytext=(-largura_total/2 - offset, y_cc - offset*0.5),
+        ax.annotate(f'R{raio_conn:.2f}', xy=(-x_cc, y_cc), xytext=(-largura_total/2 - offset*1.0, y_cc - offset*0.3),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-        ax.annotate(f'R{raio_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5),
+        ax.annotate(f'R{raio_base:.2f}', xy=(0, raio_base), xytext=(-offset*1.5, -offset*0.5),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-        # --- COTAS DE ÂNGULO (Arcos baseados na linha de centro) ---
+        # --- COTAS DE ÂNGULO (Corrigidas geometricamente) ---
         t1_x, t1_y = tangentes['t1']
         v1_x, v1_y = tangentes['v1']
         t3_x, t3_y = tangentes['t3']
         v2_x, v2_y = tangentes['v2']
         
-        # Arco Superior (39°)
+        # Arco Superior (39°) - Forçado a desenhar perto do centro da conexão
         if v1_x != 0:
-            y_int_sup = t1_y - t1_x * (v1_y / v1_x) # Interseção da rampa superior com X=0
-            raio_arco_sup = abs(y_int_sup - y_cc) * 0.8
+            y_int_sup = t1_y - t1_x * (v1_y / v1_x)
+            y_vis_sup = y_cc + (y_tr - y_cc)/2 # Altura ideal visual para a cota
+            raio_arco_sup = abs(y_vis_sup - y_int_sup)
+            
             arco_sup = patches.Arc((0, y_int_sup), raio_arco_sup*2, raio_arco_sup*2, 
                                    theta1=90-angulo_sup, theta2=90, color='green', lw=1)
             ax.add_patch(arco_sup)
-            # Posição do texto do ângulo
-            txt_x_sup = (raio_arco_sup + 0.3) * math.sin(math.radians(angulo_sup/2))
-            txt_y_sup = y_int_sup - (raio_arco_sup + 0.3) * math.cos(math.radians(angulo_sup/2))
+            
+            mid_angle_sup = math.radians(90 - angulo_sup/2)
+            txt_x_sup = (raio_arco_sup + offset*0.15) * math.cos(mid_angle_sup)
+            txt_y_sup = y_int_sup + (raio_arco_sup + offset*0.15) * math.sin(mid_angle_sup)
             ax.text(txt_x_sup, txt_y_sup, f'{angulo_sup:.0f}°', color='green', fontsize=10, ha='left', va='center')
 
-        # Arco Inferior (7.73°)
+        # Arco Inferior (Referência) - Forçado a desenhar no terço inferior da peça
         if v2_x != 0:
-            y_int_inf = t3_y - t3_x * (v2_y / v2_x) # Interseção da rampa inferior com X=0
-            raio_arco_inf = abs(y_int_inf - raio_base) * 0.5
+            y_int_inf = t3_y - t3_x * (v2_y / v2_x)
+            y_vis_inf = altura * 0.4 # Altura ideal visual (40% da peça)
+            raio_arco_inf = abs(y_vis_inf - y_int_inf)
+            
             arco_inf = patches.Arc((0, y_int_inf), raio_arco_inf*2, raio_arco_inf*2, 
                                    theta1=90-angulo_inf_calculado, theta2=90, color='green', lw=1)
             ax.add_patch(arco_inf)
-            txt_x_inf = (raio_arco_inf + 0.3) * math.sin(math.radians(angulo_inf_calculado/2))
-            txt_y_inf = y_int_inf - (raio_arco_inf + 0.3) * math.cos(math.radians(angulo_inf_calculado/2))
+            
+            mid_angle_inf = math.radians(90 - angulo_inf_calculado/2)
+            txt_x_inf = (raio_arco_inf + offset*0.15) * math.cos(mid_angle_inf)
+            txt_y_inf = y_int_inf + (raio_arco_inf + offset*0.15) * math.sin(mid_angle_inf)
             ax.text(txt_x_inf, txt_y_inf, f'({angulo_inf_calculado:.2f}°)', color='green', fontsize=10, ha='left', va='center')
 
         # Carimbo
@@ -217,7 +224,7 @@ else:
             f"Desenhado por: Felipe\n"
             f"Aprovado por: Paulo"
         )
-        ax.text(largura_total/2 + offset*1.8, altura, texto_carimbo, ha='left', va='top', 
+        ax.text(largura_total/2 + offset*1.2, altura, texto_carimbo, ha='left', va='top', 
                 bbox=dict(facecolor='white', edgecolor='black', boxstyle='square,pad=0.8'), fontsize=8, family='monospace')
 
         st.pyplot(fig)
