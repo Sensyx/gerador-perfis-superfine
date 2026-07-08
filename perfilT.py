@@ -19,7 +19,6 @@ with st.sidebar.form("form_parametros"):
     raio_base = st.number_input("Raio da Base (mm)", value=0.45, step=0.05, format="%.2f")
     raio_conn = st.number_input("Raio de Conexão (mm)", value=0.50, step=0.05, format="%.2f")
     
-    # Atualizado para indicar que agora parte do Topo
     h_conn = st.number_input("Altura de Tangência (mm)", value=1.58, step=0.05, format="%.2f", help="Medido do Topo da peça até o ponto de tangência do raio de conexão")
     
     st.divider()
@@ -44,7 +43,7 @@ def gerar_perfil_t_rampas(w_total, h, r_top, r_base, r_conn, h_conn_val, ang_sup
         v1_x = -math.sin(alpha)
         v1_y = -math.cos(alpha)
         
-        # 2. Centro do Raio de Conexão (AGORA MEDIDO A PARTIR DE 'h' - O Topo Físico)
+        # 2. Centro do Raio de Conexão
         t2_y = h - h_conn_val
         k = (t2_y - t1_y) / v1_y if v1_y != 0 else 0
         t2_x = t1_x + k * v1_x
@@ -114,10 +113,10 @@ def gerar_perfil_t_rampas(w_total, h, r_top, r_base, r_conn, h_conn_val, ang_sup
     except Exception as e:
         return None, None, None, None
 
-if submit_button or 'perfil_t_calc_v8' not in st.session_state:
-    st.session_state.perfil_t_calc_v8 = gerar_perfil_t_rampas(largura_total, altura, raio_topo, raio_base, raio_conn, h_conn, angulo_sup)
+if submit_button or 'perfil_t_calc_v9' not in st.session_state:
+    st.session_state.perfil_t_calc_v9 = gerar_perfil_t_rampas(largura_total, altura, raio_topo, raio_base, raio_conn, h_conn, angulo_sup)
 
-perfil, angulo_inf_calculado, centros, tangentes = st.session_state.perfil_t_calc_v8
+perfil, angulo_inf_calculado, centros, tangentes = st.session_state.perfil_t_calc_v9
 
 if perfil is None:
     st.error("⚠️ As medidas fornecidas não formam uma geometria tangencial válida. Verifique os raios e ângulos.")
@@ -142,36 +141,32 @@ else:
         ax.set_xlim(-largura_total/2 - offset*2.5, largura_total/2 + offset*2.5)
         ax.set_ylim(-offset*1.5, altura + offset*1.5)
         
-        # Linha de Centro (Dentro da margem da peça)
         ax.plot([0, 0], [-offset*0.2, altura + offset*0.2], color='#ff00ff', lw=0.8, ls='-.')
         
-        # Cruzes dos Centros
         ax.plot([-x_tr, x_tr], [y_tr, y_tr], marker='+', color='#ff00ff', markersize=8, ls='None')
         ax.plot([-x_cc, x_cc], [y_cc, y_cc], marker='+', color='#ff00ff', markersize=8, ls='None')
         ax.plot([0], [raio_base], marker='+', color='#ff00ff', markersize=8, ls='None')
 
         # --- COTAS LINEARES ---
-        # Largura Total
         ax.plot([-largura_total/2, -largura_total/2], [altura, altura + offset*0.5], color='green', lw=0.8, ls='-')
         ax.plot([largura_total/2, largura_total/2], [altura, altura + offset*0.5], color='green', lw=0.8, ls='-')
         ax.annotate('', xy=(-largura_total/2, altura + offset*0.4), xytext=(largura_total/2, altura + offset*0.4),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
         ax.text(0, altura + offset*0.5, f'{largura_total:.2f}', ha='center', va='bottom', fontsize=10, color='green')
 
-        # Altura Total
         ax.plot([x_tr + 0.2, largura_total/2 + offset*0.6], [altura, altura], color='green', lw=0.8, ls='-')
         ax.plot([0.2, largura_total/2 + offset*0.6], [0, 0], color='green', lw=0.8, ls='-')
         ax.annotate('', xy=(largura_total/2 + offset*0.4, 0), xytext=(largura_total/2 + offset*0.4, altura),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
         ax.text(largura_total/2 + offset*0.6, altura/2, f'{altura:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
 
-        # Cota de h_conn (AGORA PUXANDO DA ARESTA DO TOPO 'h')
-        line_x_h = -largura_total/2 - offset*0.8 # Afastado ligeiramente para não bater na cota de Raio
-        ax.plot([-largura_total/2 + 0.2, line_x_h], [altura, altura], color='green', lw=0.8, ls='-') # Puxa do topo
+        line_x_h = -largura_total/2 - offset*0.8
+        ax.plot([-largura_total/2 + 0.2, line_x_h], [altura, altura], color='green', lw=0.8, ls='-') 
         ax.plot([-t2_x - 0.2, line_x_h], [t2_y, t2_y], color='green', lw=0.8, ls='-')
         ax.annotate('', xy=(line_x_h + 0.2, t2_y), xytext=(line_x_h + 0.2, altura),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
-        ax.text(line_x_h, (altura + t2_y)/2, f'{h_conn_val:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+        # CORREÇÃO APLICADA AQUI: h_conn
+        ax.text(line_x_h, (altura + t2_y)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
 
         # --- MOTOR DE CÁLCULO PERIMETRAL PARA SETAS DE RAIO ---
         def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
@@ -198,7 +193,7 @@ else:
         ax.annotate(f'R{raio_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-        # --- COTAS DE ÂNGULO (Centralizadas horizontal e verticalmente na rampa) ---
+        # --- COTAS DE ÂNGULO ---
         t1_x, t1_y = tangentes['t1']
         v1_x, v1_y = tangentes['v1']
         t3_x, t3_y = tangentes['t3']
@@ -206,36 +201,31 @@ else:
         
         text_bbox = dict(facecolor='#f0f2f6', edgecolor='none', pad=1, alpha=0.9)
         
-        # Rampa Superior (39°)
         if v1_x != 0:
             y_int_sup = t1_y - t1_x * (v1_y / v1_x)
-            y_vis_sup = (t1_y + t2_y) / 2 # Ponto médio exato da rampa visível
+            y_vis_sup = (t1_y + t2_y) / 2 
             raio_arco_sup = abs(y_vis_sup - y_int_sup)
             
             arco_sup = patches.Arc((0, y_int_sup), raio_arco_sup*2, raio_arco_sup*2, 
                                    theta1=90-angulo_sup, theta2=90, color='green', lw=1)
             ax.add_patch(arco_sup)
             
-            # Centraliza o texto na metade horizontal da rampa 
             x_rampa_sup = t1_x + (y_vis_sup - t1_y) * (v1_x / v1_y)
             ax.text(x_rampa_sup * 0.5, y_vis_sup, f'{angulo_sup:.0f}°', color='green', 
                     fontsize=10, ha='center', va='center', bbox=text_bbox)
 
-        # Rampa Inferior (Referência)
         if v2_x != 0:
             y_int_inf = t3_y - t3_x * (v2_y / v2_x)
-            t4_y_pt = tangentes['v2'][1] + t3_y # Coordenada Y do fim da rampa
-            y_vis_inf = (t3_y + t4_y_pt) / 2 # Ponto médio exato da rampa visível
+            t4_y_pt = tangentes['v2'][1] + t3_y 
+            y_vis_inf = (t3_y + t4_y_pt) / 2 
             raio_arco_inf = abs(y_vis_inf - y_int_inf)
             
-            # Define o arco independente de onde a intersecção aconteça
             t1_arc, t2_arc = (90 - angulo_inf_calculado, 90) if y_int_inf < y_vis_inf else (270, 270 + angulo_inf_calculado)
             
             arco_inf = patches.Arc((0, y_int_inf), raio_arco_inf*2, raio_arco_inf*2, 
                                    theta1=t1_arc, theta2=t2_arc, color='green', lw=1)
             ax.add_patch(arco_inf)
             
-            # Centraliza o texto na metade horizontal da rampa 
             x_rampa_inf = t3_x + (y_vis_inf - t3_y) * (v2_x / v2_y)
             ax.text(x_rampa_inf * 0.5, y_vis_inf, f'({angulo_inf_calculado:.2f}°)', color='green', 
                     fontsize=10, ha='center', va='center', bbox=text_bbox)
