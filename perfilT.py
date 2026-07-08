@@ -18,9 +18,7 @@ with st.sidebar.form("form_parametros"):
     raio_topo = st.number_input("Raio do Topo (mm)", value=0.30, step=0.05, format="%.2f")
     raio_base = st.number_input("Raio da Base (mm)", value=0.45, step=0.05, format="%.2f")
     raio_conn = st.number_input("Raio de Conexão (mm)", value=0.50, step=0.05, format="%.2f")
-    
-    # Atualizado o nome para deixar claro no sistema
-    h_conn = st.number_input("Altura de Tangência (mm)", value=1.71, step=0.05, format="%.2f", help="Medido do centro do raio superior até o ponto de tangência do raio de conexão")
+    h_conn = st.number_input("Altura Média do Raio (mm)", value=1.71, step=0.05, format="%.2f", help="Medido do centro do raio do topo até a METADE do perímetro do raio de conexão.")
     
     st.divider()
     angulo_sup = st.number_input("Ângulo Rampa Superior (°)", value=39.0, step=0.5, format="%.1f")
@@ -41,36 +39,64 @@ def gerar_perfil_t_rampas(w_total, h, r_top, r_base, r_conn, h_conn_dim, ang_sup
         t1_x = x_tr + r_top * n1_x
         t1_y = y_tr + r_top * n1_y
         
-        v1_x = -math.sin(alpha)
-        v1_y = -math.cos(alpha)
+        # O coeficiente da reta da rampa superior
+        D = n1_x * t1_x + n1_y * t1_y
         
-        # 2. NOVA LÓGICA DE TANGÊNCIA (Baseada no CAD)
-        # O Ponto de tangência (t2_y) fica exatamente 1.71 abaixo do centro do raio do topo (y_tr)
-        t2_y = y_tr - h_conn_dim
+        # 2. MOTOR DE RESOLUÇÃO ITERATIVA (SOLVER)
+        target_ymid = y_tr - h_conn_dim
+        low = r_base
+        high = y_tr
         
-        # Interseção matemática na reta para encontrar o X da tangência
-        k = (t2_y - t1_y) / v1_y
-        t2_x = t1_x + k * v1_x
+        y_cc = 0
+        x_cc = 0
+        phi = 0
+        a1_conn = 0
+        a2_conn = 0
+        a_mid = 0
         
-        # Agora sim, recuamos a partir da tangência para encontrar o centro do raio de 0.50
-        x_cc = t2_x + r_conn * n1_x
-        y_cc = t2_y + r_conn * n1_y
-        
-        # 3. Tangente Interna (Rampa Inferior)
-        dy = y_cc - r_base
-        dx = x_cc
-        dist = math.hypot(dx, dy)
-        
-        gamma = math.atan2(dy, dx)
-        delta = math.acos((r_base + r_conn) / dist)
-        
-        phi = gamma - delta 
-        n2_x = math.cos(phi)
-        n2_y = math.sin(phi)
+        # Executa 60 simulações de tangência até estabilizar na medida do perímetro
+        for _ in range(60):
+            y_cc = (low + high) / 2
+            x_cc = (D - r_conn - n1_y * y_cc) / n1_x
+            
+            dy = y_cc - r_base
+            dx = x_cc
+            dist = math.hypot(dx, dy)
+            
+            if dist < r_base + r_conn:
+                low = y_cc
+                continue
+                
+            gamma = math.atan2(dy, dx)
+            val = (r_base + r_conn) / dist
+            if val > 1.0: val = 1.0
+            elif val < -1.0: val = -1.0
+            delta = math.acos(val)
+            phi = gamma - delta
+            
+            n2_x = math.cos(phi)
+            n2_y = math.sin(phi)
+            
+            a1_conn = math.atan2(-n1_y, -n1_x)
+            a2_conn = math.atan2(-n2_y, -n2_x)
+            
+            while a2_conn > a1_conn: a2_conn -= 2 * math.pi
+            
+            a_mid = (a1_conn + a2_conn) / 2
+            y_mid_calc = y_cc + r_conn * math.sin(a_mid)
+            
+            if y_mid_calc > target_ymid:
+                high = y_cc
+            else:
+                low = y_cc
+                
+        # Calcula as coordenadas finais do meio do arco
+        x_mid = x_cc + r_conn * math.cos(a_mid)
+        y_mid = y_cc + r_conn * math.sin(a_mid)
         
         ang_inf_deg = -math.degrees(phi)
         
-        # 4. Gerador de Arcos
+        # 3. Gerador de Arcos
         def arc(cx, cy, r, a1, a2, cw=True, steps=30):
             pts = []
             if cw:
@@ -82,50 +108,40 @@ def gerar_perfil_t_rampas(w_total, h, r_top, r_base, r_conn, h_conn_dim, ang_sup
                 pts.append((cx + r * math.cos(ang), cy + r * math.sin(ang)))
             return pts
 
-        a1_top = math.pi / 2
-        a2_top = math.atan2(n1_y, n1_x)
-        arc_top = arc(x_tr, y_tr, r_top, a1_top, a2_top, cw=True)
-        
-        a1_conn = math.atan2(-n1_y, -n1_x)
-        a2_conn = math.atan2(-n2_y, -n2_x)
+        arc_top = arc(x_tr, y_tr, r_top, math.pi / 2, a1_conn + math.pi, cw=True)
         arc_conn = arc(x_cc, y_cc, r_conn, a1_conn, a2_conn, cw=False) 
+        arc_base = arc(0, r_base, r_base, a2_conn + math.pi, -math.pi / 2, cw=True)
         
-        a1_base = math.atan2(n2_y, n2_x)
-        a2_base = -math.pi / 2
-        arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
-        
-        # 5. Montagem do Polígono
+        # 4. Montagem do Polígono
         right_half = [(0, h), (x_tr, h)] + arc_top + arc_conn + arc_base + [(0, 0)]
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
         
         tangentes = {
-            't1': (t1_x, t1_y),
-            'v1': (v1_x, v1_y),
-            't3': (x_cc - r_conn*n2_x, y_cc - r_conn*n2_y),
+            't1': (x_cc - r_conn * n1_x, y_cc - r_conn * n1_y),
+            'v1': (-math.sin(alpha), -math.cos(alpha)),
+            't3': (x_cc - r_conn * n2_x, y_cc - r_conn * n2_y),
             'v2': (-math.sin(phi), -math.cos(phi))
         }
         
-        # Retornando t2_x e t2_y para desenhar a cota perfeitamente
-        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, t2_x, t2_y), tangentes
+        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, x_mid, y_mid), tangentes
     
     except Exception as e:
         return None, None, None, None
 
-# Mudei a variável para _v3 para limpar a memória do Streamlit e não dar aquele erro vermelho
-if submit_button or 'perfil_t_calc_v3' not in st.session_state:
-    st.session_state.perfil_t_calc_v3 = gerar_perfil_t_rampas(largura_total, altura, raio_topo, raio_base, raio_conn, h_conn, angulo_sup)
+# Variável de sessão atualizada (_v4) para evitar cache no Streamlit
+if submit_button or 'perfil_t_calc_v4' not in st.session_state:
+    st.session_state.perfil_t_calc_v4 = gerar_perfil_t_rampas(largura_total, altura, raio_topo, raio_base, raio_conn, h_conn, angulo_sup)
 
-perfil, angulo_inf_calculado, centros, tangentes = st.session_state.perfil_t_calc_v3
+perfil, angulo_inf_calculado, centros, tangentes = st.session_state.perfil_t_calc_v4
 
 if perfil is None:
-    st.error("⚠️ As medidas fornecidas não formam uma geometria tangencial válida. Verifique os raios e ângulos.")
+    st.error("⚠️ As medidas fornecidas geram um conflito geométrico impossível. Verifique os valores.")
 else:
     area_mm2 = perfil.area
     peso_por_metro = area_mm2 * densidade
     
-    # Desempacotando as coordenadas de tangência
-    x_tr, y_tr, x_cc, y_cc, t2_x, t2_y = centros
+    x_tr, y_tr, x_cc, y_cc, x_mid, y_mid = centros
 
     col1, col2 = st.columns([2, 1])
 
@@ -146,7 +162,9 @@ else:
         ax.plot([0, 0], [-offset*0.5, altura + offset*0.8], color='#ff00ff', lw=0.8, ls='-.')
         ax.plot([-x_tr, x_tr], [y_tr, y_tr], marker='+', color='#ff00ff', markersize=8, ls='None')
         ax.plot([-x_cc, x_cc], [y_cc, y_cc], marker='+', color='#ff00ff', markersize=8, ls='None')
-        ax.plot([0], [raio_base], marker='+', color='#ff00ff', markersize=8, ls='None')
+        
+        # PONTO DA METADE DO ARCO ONDE A COTA DE 1.71 BATE
+        ax.plot([-x_mid, x_mid], [y_mid, y_mid], marker='.', color='green', markersize=5, ls='None')
 
         # --- COTAS LINEARES ---
         ax.plot([-largura_total/2, -largura_total/2], [altura, altura + offset*0.6], color='green', lw=0.8, ls='-')
@@ -161,17 +179,17 @@ else:
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
         ax.text(largura_total/2 + offset*1.4, altura/2, f'{altura:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
 
-        # COTA DE 1.71 ATUALIZADA (Medindo da cruz rosa até a tangência)
+        # COTA DE 1.71 (Puxando de y_tr até y_mid do perímetro)
         ax.plot([-x_tr - 0.5, -largura_total/2 - offset*1.5], [y_tr, y_tr], color='green', lw=0.8, ls='-')
-        ax.plot([-t2_x - 0.5, -largura_total/2 - offset*1.5], [t2_y, t2_y], color='green', lw=0.8, ls='-')
-        ax.annotate('', xy=(-largura_total/2 - offset*1.2, t2_y), xytext=(-largura_total/2 - offset*1.2, y_tr),
+        ax.plot([-x_mid - 0.5, -largura_total/2 - offset*1.5], [y_mid, y_mid], color='green', lw=0.8, ls='-')
+        ax.annotate('', xy=(-largura_total/2 - offset*1.2, y_mid), xytext=(-largura_total/2 - offset*1.2, y_tr),
                     arrowprops=dict(arrowstyle='<|-|>', color='green', shrinkA=0, shrinkB=0, lw=1))
-        ax.text(-largura_total/2 - offset*1.4, (y_tr + t2_y)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+        ax.text(-largura_total/2 - offset*1.4, (y_tr + y_mid)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
 
         # Raios
         ax.annotate(f'R{raio_topo:.2f}', xy=(-x_tr, y_tr+raio_topo), xytext=(-largura_total/2 - offset, altura + offset*0.2),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-        ax.annotate(f'R{raio_conn:.2f}', xy=(-x_cc+raio_conn, y_cc), xytext=(-largura_total/2 - offset, y_cc - offset*0.5),
+        ax.annotate(f'R{raio_conn:.2f}', xy=(-x_mid, y_mid), xytext=(-largura_total/2 - offset, y_mid - offset*0.5),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
         ax.annotate(f'R{raio_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5),
                     arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
@@ -219,7 +237,7 @@ else:
         st.pyplot(fig)
 
     with col2:
-        st.subheader("Resultados")
+        st.subheader("Resultados Físicos")
         st.metric(label="Área", value=f"{area_mm2:.3f} mm²")
         st.metric(label="Peso Linear", value=f"{peso_por_metro:.1f} g/m")
         st.metric(label="Ângulo Inferior (Referência)", value=f"{angulo_inf_calculado:.2f}°")
