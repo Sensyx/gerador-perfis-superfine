@@ -46,12 +46,12 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # 1. PONTO DE INTERSECÇÃO VIVA DAS RAMPAS
+        # PONTO DE INTERSECÇÃO VIVA DAS RAMPAS
         y_int = h - h_conn_val
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
         
-        # 2. RAMPA INFERIOR
+        # RAMPA INFERIOR
         dx_v = x_int
         dy_v = y_int - r_base
         dist_v = math.hypot(dx_v, dy_v)
@@ -97,7 +97,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
         return None, None, None, None
 
 # ==========================================
-# 2. MÓDULOS DE RENDERIZAÇÃO (MATPLOTLIB)
+# 2. MÓDULOS DE RENDERIZAÇÃO E CARIMBO
 # ==========================================
 def formatar_eixos(ax, w, h):
     offset = max(w, h) * 0.15 
@@ -108,14 +108,15 @@ def formatar_eixos(ax, w, h):
     ax.plot([0, 0], [-offset*0.2, h + offset*0.2], color='#ff00ff', lw=0.8, ls='-.')
     return offset
 
-def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo):
+def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo, pos_ratio=0.5):
+    """ pos_ratio controla o deslizamento do ângulo ao longo da rampa (0.0 a 1.0) """
     x1, y1 = pt_start
     x2, y2 = pt_end
     v_x, v_y = x2 - x1, y2 - y1
     
     if v_x != 0:
         y_int = y1 - x1 * (v_y / v_x)
-        y_vis = (y1 + y2) / 2         
+        y_vis = y1 + (y2 - y1) * pos_ratio         
         x_rampa = x1 + (y_vis - y1) * (v_x / v_y)
         
         raio_arco = math.hypot(x_rampa, y_vis - y_int)
@@ -128,14 +129,12 @@ def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo):
         txt_y = y_int + raio_arco * math.sin(mid_ang)
         
         texto = f'{angulo:.0f}°' if abs(angulo - round(angulo)) < 0.1 else f'({angulo:.2f}°)'
-        
-        # O espaçamento (gap) e alinhamento va='bottom' garante o texto apoiado sobre a linha do arco
         ax.text(txt_x, txt_y + 0.15, texto, color='green', fontsize=10, ha='center', va='bottom')
 
 def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base = kwargs['r_top'], kwargs['r_base']
     offset = formatar_eixos(ax, w, h)
-    gap = 0.15 # Espaçamento padrão normativo
+    gap = 0.15 
     
     x, y = poly.exterior.xy
     ax.plot(x, y, color='black', linewidth=1.5)
@@ -145,14 +144,12 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cota Horizontal Superior (Texto acima da linha)
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
-    # Cota Vertical Lateral (Texto à esquerda da linha)
     line_x = w/2 + offset*0.5
     ax.plot([xtr1 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
@@ -162,12 +159,12 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate(f'R{r_top:.2f}', xy=(-xtr1, ytr1+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     
-    desenhar_angulo_tangente(ax, tangentes['t1'], tangentes['t2'], ang)
+    desenhar_angulo_tangente(ax, tangentes['t1'], tangentes['t2'], ang, pos_ratio=0.5)
 
 def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base, h_conn, ang_sup = kwargs['r_top'], kwargs['r_base'], kwargs['h_conn'], kwargs['ang_sup']
     offset = formatar_eixos(ax, w, h)
-    gap = 0.15 # Espaçamento padrão normativo
+    gap = 0.15 
     
     x, y = poly.exterior.xy
     ax.plot(x, y, color='black', linewidth=1.5)
@@ -178,32 +175,28 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     t_int_x, t_int_y = tangentes['t_int']
     t2_x, t2_y = tangentes['t2']
     
-    # Marcadores de Centro
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cota Horizontal Superior (Texto acima da linha)
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
-    # Cota Vertical Lateral (Altura Total)
     line_x = w/2 + offset*0.5
     ax.plot([xtr2 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
-    # Cota da Altura da Intersecção Viva (1.71)
     line_x_h = -w/2 - offset*0.8
     ax.plot([-w/2 + 0.2, line_x_h - 0.2], [h, h], color='green', lw=0.8, ls='-') 
     ax.plot([-x_int, line_x_h - 0.2], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h, y_int), xytext=(line_x_h, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x_h - gap, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    # TEXTO SEPARADO MILIMETRICAMENTE DA COTA
+    ax.text(line_x_h - 0.2, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    # Cotas de Raio
     def get_perimeter_point(cx, cy, r, tx, ty):
         d = math.hypot(cx - tx, cy - ty)
         if d == 0: return cx, cy
@@ -218,56 +211,97 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-    # Cotas de Ângulo
-    desenhar_angulo_tangente(ax, (t1_x, t1_y), (t_int_x, t_int_y), ang_sup)
-    desenhar_angulo_tangente(ax, (t_int_x, t_int_y), (t2_x, t2_y), ang)
+    # CONTROLE DE DESLIZAMENTO DO ÂNGULO: 75% da rampa para baixo
+    desenhar_angulo_tangente(ax, (t1_x, t1_y), (t_int_x, t_int_y), ang_sup, pos_ratio=0.75)
+    desenhar_angulo_tangente(ax, (t_int_x, t_int_y), (t2_x, t2_y), ang, pos_ratio=0.30)
+
+def desenhar_legenda_padrao(fig, titulo, data_str, cliente, responsavel, empresa, obs, area_info=None):
+    ax_c = fig.add_axes([0.1, 0.05, 0.8, 0.12]) 
+    ax_c.axis('off')
+    
+    # Bordas e Linhas Principais
+    ax_c.add_patch(patches.Rectangle((0, 0), 1, 1, fill=False, lw=1.5, transform=ax_c.transAxes))
+    ax_c.plot([0, 1], [0.75, 0.75], color='black', lw=1, transform=ax_c.transAxes)
+    ax_c.plot([0, 1], [0.50, 0.50], color='black', lw=1, transform=ax_c.transAxes)
+    ax_c.plot([0, 1], [0.25, 0.25], color='black', lw=1, transform=ax_c.transAxes)
+    ax_c.plot([0.5, 0.5], [0.25, 1.0], color='black', lw=1, transform=ax_c.transAxes)
+    
+    # Injeção dos Textos
+    ax_c.text(0.02, 0.875, "PERFIL/PROJETO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.15, 0.875, titulo, fontsize=10, transform=ax_c.transAxes)
+    ax_c.text(0.52, 0.875, "EMPRESA:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.65, 0.875, empresa, fontsize=10, transform=ax_c.transAxes)
+    
+    ax_c.text(0.02, 0.625, "CLIENTE:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.15, 0.625, cliente, fontsize=10, transform=ax_c.transAxes)
+    ax_c.text(0.52, 0.625, "RESPONSÁVEL:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.65, 0.625, responsavel, fontsize=10, transform=ax_c.transAxes)
+    
+    ax_c.text(0.02, 0.375, "DATA DE EMISSÃO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.15, 0.375, data_str, fontsize=10, transform=ax_c.transAxes)
+    
+    if area_info:
+        ax_c.text(0.52, 0.375, "ÁREA / PESO LINEAR:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+        ax_c.text(0.65, 0.375, area_info, fontsize=10, transform=ax_c.transAxes)
+    
+    ax_c.text(0.02, 0.125, "OBSERVAÇÕES:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
+    ax_c.text(0.15, 0.125, obs, fontsize=10, transform=ax_c.transAxes)
+
 
 # ==========================================
-# 3. INTERFACE E LÓGICA DINÂMICA
+# 3. INTERFACE DE USUÁRIO (TOP-DOWN)
 # ==========================================
-st.sidebar.header("Estrutura do Projeto")
-modo = st.sidebar.radio("Modo de Análise", ["Individual", "Comparativo"])
+st.markdown("### 1. Documentação Técnica")
+with st.container():
+    c1, c2, c3, c4 = st.columns(4)
+    empresa = c1.text_input("Empresa", value="Superfine Steel")
+    cliente = c2.text_input("Cliente", value="")
+    responsavel = c3.text_input("Responsável", value="Felipe Maia")
+    data_doc = c4.date_input("Data de Emissão", value=date.today())
+    obs = st.text_input("Observação", value="Tolerâncias dimensionais e de usinagem não indicadas devem seguir a norma DIN 7168.")
 
+st.markdown("### 2. Configurações Globais")
+with st.container():
+    c1, c2, c3, c4 = st.columns(4)
+    w_global = c1.number_input("Largura Total (mm)", value=5.30, step=0.10, format="%.2f")
+    h_global = c2.number_input("Altura Total (mm)", value=10.60, step=0.10, format="%.2f")
+    densidade = c3.number_input("Densidade (g/cm³)", value=8.50, step=0.10, format="%.2f")
+    modo = c4.selectbox("Modo de Análise", ["Individual", "Comparativo"])
+
+st.markdown("### 3. Parâmetros Geométricos")
 perfis_disponiveis = ["Triangular", "Tipo T"]
 
-def renderizar_inputs(modelo, prefixo):
-    params = {}
-    st.markdown(f"**Parâmetros: {modelo}**")
-    params['r_top'] = st.number_input("Raio Topo (mm)", value=0.30, step=0.05, format="%.2f", key=f"{prefixo}_rtop")
-    params['r_base'] = st.number_input("Raio Base (mm)", value=0.45, step=0.05, format="%.2f", key=f"{prefixo}_rbase")
+def renderizar_inputs(prefixo):
+    col1, col2, col3, col4 = st.columns(4)
+    r_top = col1.number_input("Raio Topo (mm)", value=0.30, step=0.05, format="%.2f", key=f"{prefixo}_rtop")
+    r_base = col2.number_input("Raio Base (mm)", value=0.45, step=0.05, format="%.2f", key=f"{prefixo}_rbase")
     
-    if modelo == "Tipo T":
-        params['h_conn'] = st.number_input("Altura da Intersecção (mm)", value=1.71, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
-        params['ang_sup'] = st.number_input("Ângulo Superior (°)", value=39.0, step=0.5, format="%.1f", key=f"{prefixo}_ang")
-    
-    st.divider()
-    return params
+    if st.session_state.get(f"{prefixo}_sel") == "Tipo T":
+        h_conn = col3.number_input("Altura Intersecção (mm)", value=1.71, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
+        ang_sup = col4.number_input("Ângulo Superior (°)", value=39.0, step=0.5, format="%.1f", key=f"{prefixo}_ang")
+        return {'r_top': r_top, 'r_base': r_base, 'h_conn': h_conn, 'ang_sup': ang_sup}
+    return {'r_top': r_top, 'r_base': r_base}
 
-with st.sidebar.form("form_dinamico"):
-    st.subheader("Medidas Globais")
-    w_global = st.number_input("Largura Total (mm)", value=5.30, step=0.10, format="%.2f")
-    h_global = st.number_input("Altura Total (mm)", value=10.60, step=0.10, format="%.2f")
-    densidade = st.number_input("Densidade (g/cm³)", value=8.50, step=0.10, format="%.2f")
-    data_doc = st.date_input("Data de Emissão", value=date.today(), format="DD/MM/YYYY")
-    st.divider()
+if modo == "Individual":
+    perfil_sel = st.selectbox("Selecione a Geometria", perfis_disponiveis, key="p1_sel")
+    kwargs_p1 = renderizar_inputs("p1")
+else:
+    colA, colB = st.columns(2)
+    with colA:
+        perfil_1 = st.selectbox("Geometria Esquerda", perfis_disponiveis, index=0, key="p1_sel")
+        kwargs_p1 = renderizar_inputs("p1")
+    with colB:
+        perfil_2 = st.selectbox("Geometria Direita", perfis_disponiveis, index=1, key="p2_sel")
+        kwargs_p2 = renderizar_inputs("p2")
     
-    if modo == "Individual":
-        perfil_sel = st.selectbox("Selecione a Geometria", perfis_disponiveis)
-        kwargs_p1 = renderizar_inputs(perfil_sel, "p1")
-    else:
-        perfil_1 = st.selectbox("Geometria Esquerda", perfis_disponiveis, index=0)
-        kwargs_p1 = renderizar_inputs(perfil_1, "p1")
-        
-        perfil_2 = st.selectbox("Geometria Direita", perfis_disponiveis, index=1)
-        kwargs_p2 = renderizar_inputs(perfil_2, "p2")
-        
-    submit_button = st.form_submit_button(label="Gerar Documento de Engenharia")
+st.divider()
+submit_button = st.button("Gerar Documento de Engenharia", type="primary", use_container_width=True)
 
 # ==========================================
-# GERAÇÃO DA FOLHA (PDF)
+# 4. GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v19_iniciado' not in st.session_state:
-    st.session_state.app_v19_iniciado = True
+if submit_button or 'app_v20_iniciado' not in st.session_state:
+    st.session_state.app_v20_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
@@ -284,15 +318,18 @@ def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
 if modo == "Individual":
     poly1, ang1, cent1, tang1 = processar_geometria(perfil_sel, kwargs_p1)
     if poly1 is None:
-        st.error("Erro geométrico no perfil.")
+        st.error("Erro geométrico no perfil. Verifique as medidas.")
     else:
         area = poly1.area
-        fig = plt.figure(figsize=(9, 12))
-        ax = fig.add_subplot(111)
+        peso = area * densidade
+        
+        fig = plt.figure(figsize=(10, 14))
+        ax = fig.add_axes([0.1, 0.25, 0.8, 0.7]) 
         plotar_geometria(ax, perfil_sel, poly1, ang1, cent1, tang1, kwargs_p1)
         
-        texto_carimbo = f"Superfine Steel Aços Inoxidáveis\nPerfil {perfil_sel}\nÁrea: {area:.3f} mm²\nPeso: {area*densidade:.1f} g/m\nData: {data_doc.strftime('%d/%m/%Y')}"
-        ax.text(w_global/2 + max(w_global, h_global)*0.15, h_global, texto_carimbo, ha='left', va='top', bbox=dict(facecolor='white', edgecolor='black', boxstyle='square,pad=0.8'), fontsize=8, family='monospace')
+        titulo_doc = f"Perfil {perfil_sel} {w_global:.2f} x {h_global:.2f}"
+        area_string = f"{area:.3f} mm²  /  {peso:.1f} g/m"
+        desenhar_legenda_padrao(fig, titulo_doc, data_doc.strftime('%d/%m/%Y'), cliente, responsavel, empresa, obs, area_string)
         
         st.pyplot(fig)
 
@@ -307,47 +344,21 @@ elif modo == "Comparativo":
         reducao = ((area1 - area2) / area1) * 100
         
         fig = plt.figure(figsize=(14, 16))
-        fig.subplots_adjust(bottom=0.25, wspace=0.1)
-        ax1 = fig.add_subplot(121)
-        ax2 = fig.add_subplot(122)
+        ax1 = fig.add_axes([0.05, 0.25, 0.4, 0.65])
+        ax2 = fig.add_axes([0.55, 0.25, 0.4, 0.65])
         
         plotar_geometria(ax1, perfil_1, poly1, ang1, cent1, tang1, kwargs_p1)
-        ax1.text(0, h_global + max(w_global, h_global)*0.4, f"{area1*densidade:.1f} g/m\nconsiderando densidade {densidade} g/cm³", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
-        ax1.text(0, -max(w_global, h_global)*0.3, f"Área\n{area1:.3f} mm²", ha='center', va='center', fontsize=12)
+        ax1.text(0, h_global + max(w_global, h_global)*0.4, f"{area1*densidade:.1f} g/m\n(Densidade: {densidade} g/cm³)", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
+        ax1.text(0, -max(w_global, h_global)*0.3, f"Área: {area1:.3f} mm²", ha='center', va='center', fontsize=12)
         
         plotar_geometria(ax2, perfil_2, poly2, ang2, cent2, tang2, kwargs_p2)
-        ax2.text(0, h_global + max(w_global, h_global)*0.4, f"{area2*densidade:.1f} g/m\nconsiderando densidade {densidade} g/cm³", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
-        ax2.text(0, -max(w_global, h_global)*0.3, f"Área\n{area2:.3f} mm²", ha='center', va='center', fontsize=12)
+        ax2.text(0, h_global + max(w_global, h_global)*0.4, f"{area2*densidade:.1f} g/m\n(Densidade: {densidade} g/cm³)", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
+        ax2.text(0, -max(w_global, h_global)*0.3, f"Área: {area2:.3f} mm²", ha='center', va='center', fontsize=12)
         
-        fig.text(0.5, 0.28, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
+        fig.text(0.5, 0.22, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
         
-        ax_carimbo = fig.add_axes([0.1, 0.05, 0.8, 0.15])
-        ax_carimbo.axis('off')
-        ax_carimbo.add_patch(patches.Rectangle((0, 0), 1, 1, fill=False, lw=1.5, transform=ax_carimbo.transAxes))
-        ax_carimbo.plot([0, 1], [0.75, 0.75], color='black', lw=1, transform=ax_carimbo.transAxes)
-        ax_carimbo.plot([0, 1], [0.50, 0.50], color='black', lw=1, transform=ax_carimbo.transAxes)
-        ax_carimbo.plot([0, 1], [0.25, 0.25], color='black', lw=1, transform=ax_carimbo.transAxes)
-        ax_carimbo.plot([0.3, 0.3], [0, 1], color='black', lw=1, transform=ax_carimbo.transAxes)
-        ax_carimbo.plot([0.7, 0.7], [0, 1], color='black', lw=1, transform=ax_carimbo.transAxes)
-        
-        ax_carimbo.text(0.15, 0.875, f"Comparativo {w_global:.2f} x {h_global:.2f}", ha='center', va='center', fontweight='bold', transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.5, 0.875, "-", ha='center', va='center', transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.85, 0.875, "NÃO SE APLICA", ha='center', va='center', transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.15, 0.625, "DENOMINAÇÃO", ha='center', va='center', fontsize=10, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.5, 0.625, "MATERIAL / DIMENSÕES", ha='center', va='center', fontsize=10, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.85, 0.625, "TRATAMENTO", ha='center', va='center', fontsize=10, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.85, 0.375, "Superfine Steel Aços Inoxidáveis", ha='center', va='center', fontweight='bold', color='#1f497d', fontsize=12, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.85, 0.125, "SANTA BÁRBARA D'OESTE - SP", ha='center', va='center', fontsize=9, transform=ax_carimbo.transAxes)
-        
-        ax_carimbo.text(0.02, 0.375, "DESENHADO POR:", ha='left', va='center', fontsize=9, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.15, 0.375, "FELIPE", ha='left', va='center', fontsize=10, fontweight='bold', transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.02, 0.125, "APROVADO POR:", ha='left', va='center', fontsize=9, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.15, 0.125, "PAULO", ha='left', va='center', fontsize=10, fontweight='bold', transform=ax_carimbo.transAxes)
-        
-        ax_carimbo.text(0.35, 0.375, "DATA DO DOCUMENTO:", ha='left', va='center', fontsize=9, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.50, 0.375, f"{data_doc.strftime('%d/%m/%Y')}", ha='left', va='center', fontsize=10, fontweight='bold', transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.35, 0.125, "ESCALA:", ha='left', va='center', fontsize=9, transform=ax_carimbo.transAxes)
-        ax_carimbo.text(0.50, 0.125, "3 : 1", ha='left', va='center', fontsize=10, fontweight='bold', transform=ax_carimbo.transAxes)
+        titulo_doc = f"Comparativo {w_global:.2f} x {h_global:.2f}"
+        desenhar_legenda_padrao(fig, titulo_doc, data_doc.strftime('%d/%m/%Y'), cliente, responsavel, empresa, obs)
         
         st.pyplot(fig)
 
@@ -358,10 +369,10 @@ def criar_pdf(figura):
     return buf
 
 if 'fig' in locals():
-    st.sidebar.divider()
-    st.sidebar.download_button(
-        label="📄 Exportar Documento PDF",
+    st.download_button(
+        label="📄 Fazer Download do Documento PDF",
         data=criar_pdf(fig),
-        file_name=f"documento_engenharia_{w_global:.2f}x{h_global:.2f}_{data_doc.strftime('%d%m%Y')}.pdf",
-        mime="application/pdf"
+        file_name=f"projeto_{w_global:.2f}x{h_global:.2f}.pdf",
+        mime="application/pdf",
+        use_container_width=True
     )
