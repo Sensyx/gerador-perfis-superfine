@@ -46,7 +46,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # INTERSECÇÃO VIRTUAL DAS RAMPAS (VÉRTICE ANTES DO FILLET)
+        # 1. INTERSECÇÃO VIRTUAL DAS RAMPAS (VÉRTICE)
         y_int = h - h_conn_val
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
@@ -65,6 +65,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         n2_x, n2_y = math.cos(phi), math.sin(phi)
         ang_inf_deg = -math.degrees(phi)
         
+        # 2. CÁLCULO EXATO DO CENTRO DO FILLET
         det = n1_x * n2_y - n1_y * n2_x
         if det != 0:
             dx_c = r_conn * (n2_y - n1_y) / det
@@ -74,12 +75,9 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         else:
             x_cc, y_cc = x_int, y_int
             
-        t2_x = x_cc + r_conn * n1_x
-        t2_y = y_cc + r_conn * n1_y
-        t3_x_pt = x_cc + r_conn * n2_x
-        t3_y_pt = y_cc + r_conn * n2_y
-        t4_x_pt = r_base * n2_x
-        t4_y_pt = r_base + r_base * n2_y
+        t2_x, t2_y = x_cc + r_conn * n1_x, y_cc + r_conn * n1_y
+        t3_x_pt, t3_y_pt = x_cc + r_conn * n2_x, y_cc + r_conn * n2_y
+        t4_x_pt, t4_y_pt = r_base * n2_x, r_base + r_base * n2_y
         
         def arc(cx, cy, r, a1, a2, cw=True, steps=64):
             pts = []
@@ -109,8 +107,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
             't1': (t1_x, t1_y), 't2': (t2_x, t2_y),
             't3': (t3_x_pt, t3_y_pt), 't4': (t4_x_pt, t4_y_pt),
             'v1': (x_int - t1_x, y_int - t1_y),
-            'v2': (t4_x_pt - x_int, t4_y_pt - y_int),
-            'a1_conn': a1_conn, 'a2_conn': a2_conn
+            'v2': (t4_x_pt - x_int, t4_y_pt - y_int)
         }
         return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, x_int, y_int), tangentes
     except:
@@ -159,8 +156,10 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     if v_x != 0:
         y_int = t1_y - t1_x * (v_y / v_x)
         y_vis = (t1_y + t2_y) / 2
-        r_arc = abs(y_vis - y_int)
+        x_rampa = t1_x + (y_vis - t1_y) * (v_x / v_y)
+        r_arc = math.hypot(x_rampa, y_int - y_vis) # Correção Trigonométrica
         t_arc1, t_arc2 = (90 - ang, 90) if y_int < y_vis else (270, 270 + ang)
+        
         ax.add_patch(patches.Arc((0, y_int), r_arc*2, r_arc*2, theta1=t_arc1, theta2=t_arc2, color='green', lw=1))
         mid_ang = math.radians(t_arc1 + ang/2)
         ax.text(r_arc*0.7 * math.cos(mid_ang), y_int + r_arc*0.7 * math.sin(mid_ang), f'({ang:.2f}°)', color='green', fontsize=10, ha='center', va='center', bbox=dict(facecolor='#f0f2f6', edgecolor='none', pad=1, alpha=0.9))
@@ -179,12 +178,12 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     t3_x, t3_y = tangentes['t3']
     t4_x, t4_y = tangentes['t4']
     
-    # Marcadores de Centro
+    # Marcadores
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([-xcc2, xcc2], [ycc2, ycc2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # EXTENSÕES VIRTUAIS DO VÉRTICE (Padrão CAD) - Lado Esquerdo
+    # EXTENSÕES VIRTUAIS DO VÉRTICE (Para demonstrar a origem da cota)
     ax.plot([-t2_x, -x_int], [t2_y, y_int], color='green', lw=0.8, ls='-')
     ax.plot([-t3_x, -x_int], [t3_y, y_int], color='green', lw=0.8, ls='-')
 
@@ -199,10 +198,10 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
     
-    # Altura Tangência (Puxando exatamente do vértice de intersecção)
+    # ALTURA DE TANGÊNCIA (Referenciando EXATAMENTE o Vértice Virtual y_int)
     line_x_h = -w/2 - offset*0.8
     ax.plot([-w/2 + 0.2, line_x_h], [h, h], color='green', lw=0.8, ls='-') 
-    ax.plot([-x_int, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-') # Conecta certinho no vértice virtual
+    ax.plot([-x_int, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h + 0.2, y_int), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(line_x_h, (h + y_int)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
     
@@ -224,26 +223,28 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate(f'R{r_conn:.2f}', xy=(px_conn, py_conn), xytext=(tx_conn, ty_conn), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-    # Cotas de Ângulo (Sempre tocando a linha preta)
+    # --- COTAS DE ÂNGULO CORRIGIDAS (Hipotenusa e Ancoragem na Reta Física) ---
     v1_x, v1_y = tangentes['v1']
     v2_x, v2_y = tangentes['v2']
     text_bbox = dict(facecolor='#f0f2f6', edgecolor='none', pad=1, alpha=0.9)
     
     if v1_x != 0:
         y_int_sup = t1_y - t1_x * (v1_y / v1_x)
-        y_vis_sup = (t1_y + t2_y) / 2 # Meio do segmento físico superior
-        raio_arco_sup = abs(y_vis_sup - y_int_sup)
-        ax.add_patch(patches.Arc((0, y_int_sup), raio_arco_sup*2, raio_arco_sup*2, theta1=90-ang_sup, theta2=90, color='green', lw=1))
+        y_vis_sup = (t1_y + t2_y) / 2 # Metade exata do segmento RETA da peça
         x_rampa_sup = t1_x + (y_vis_sup - t1_y) * (v1_x / v1_y)
+        raio_arco_sup = math.hypot(x_rampa_sup, y_int_sup - y_vis_sup) # Correção Pitagórica
+        
+        ax.add_patch(patches.Arc((0, y_int_sup), raio_arco_sup*2, raio_arco_sup*2, theta1=90-ang_sup, theta2=90, color='green', lw=1))
         ax.text(x_rampa_sup * 0.5, y_vis_sup, f'{ang_sup:.0f}°', color='green', fontsize=10, ha='center', va='center', bbox=text_bbox)
 
     if v2_x != 0:
         y_int_inf = t3_y - t3_x * (v2_y / v2_x)
-        y_vis_inf = (t3_y + t4_y) / 2 # Meio do segmento físico inferior
-        raio_arco_inf = abs(y_vis_inf - y_int_inf)
+        y_vis_inf = (t3_y + t4_y) / 2 # Metade exata do segmento RETA inferior
+        x_rampa_inf = t3_x + (y_vis_inf - t3_y) * (v2_x / v2_y)
+        raio_arco_inf = math.hypot(x_rampa_inf, y_int_inf - y_vis_inf) # Correção Pitagórica
+        
         t1_arc, t2_arc = (90 - ang, 90) if y_int_inf < y_vis_inf else (270, 270 + ang)
         ax.add_patch(patches.Arc((0, y_int_inf), raio_arco_inf*2, raio_arco_inf*2, theta1=t1_arc, theta2=t2_arc, color='green', lw=1))
-        x_rampa_inf = t3_x + (y_vis_inf - t3_y) * (v2_x / v2_y)
         ax.text(x_rampa_inf * 0.5, y_vis_inf, f'({ang:.2f}°)', color='green', fontsize=10, ha='center', va='center', bbox=text_bbox)
 
 # ==========================================
@@ -291,8 +292,8 @@ with st.sidebar.form("form_dinamico"):
 # ==========================================
 # GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v11_iniciado' not in st.session_state:
-    st.session_state.app_v11_iniciado = True
+if submit_button or 'app_v12_iniciado' not in st.session_state:
+    st.session_state.app_v12_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
