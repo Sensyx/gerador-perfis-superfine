@@ -47,7 +47,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # 1. VÉRTICE VIRTUAL INTOCÁVEL (A 1.71 DO TOPO)
+        # 1. VÉRTICE VIRTUAL INTOCÁVEL (Referência da Cota de Altura)
         y_int = h - h_conn_val
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
@@ -66,7 +66,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         n2_x, n2_y = math.cos(phi), math.sin(phi)
         ang_inf_deg = -math.degrees(phi)
         
-        # 3. FILLET CÔNCAVO (O Centro recua para o "ar")
+        # 3. FILLET CÔNCAVO (Centro recuado geometricamente)
         det = n1_x * n2_y - n1_y * n2_x
         if det != 0:
             dx_c = r_conn * (n2_y - n1_y) / det
@@ -76,7 +76,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         else:
             x_cc, y_cc = x_int, y_int
             
-        # Tangências do Fillet nas Linhas
+        # Pontos exatos de tangência do Fillet nas retas
         t2_x, t2_y = x_cc - r_conn * n1_x, y_cc - r_conn * n1_y
         t3_x, t3_y = x_cc - r_conn * n2_x, y_cc - r_conn * n2_y
         t4_x, t4_y = r_base * n2_x, r_base + r_base * n2_y
@@ -101,6 +101,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         a1_base, a2_base = math.atan2(n2_y, n2_x), -math.pi / 2
         arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
         
+        # Montagem unificada do Polígono contínuo
         right_half = [(0, h), (x_tr, h)] + arc_top + arc_conn + arc_base + [(0, 0)]
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
@@ -110,7 +111,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
             't3': (t3_x, t3_y), 't4': (t4_x, t4_y),
             't_int': (x_int, y_int)
         }
-        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc), tangentes
+        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, x_int, y_int), tangentes
     except Exception as e:
         return None, None, None, None
 
@@ -127,7 +128,6 @@ def formatar_eixos(ax, w, h):
     return offset
 
 def desenhar_angulo_vertical(ax, p1, p2, angulo_val, pos_ratio=0.5):
-    """ Desenha o arco de ângulo referenciando a linha vertical central. """
     x1, y1 = p1
     x2, y2 = p2
     dx, dy = x2 - x1, y2 - y1
@@ -155,7 +155,7 @@ def desenhar_angulo_vertical(ax, p1, p2, angulo_val, pos_ratio=0.5):
     txt_y = y_apex + R * math.sin(mid_ang)
     
     texto = f'{angulo_val:.0f}°' if abs(angulo_val - round(angulo_val)) < 0.1 else f'({angulo_val:.2f}°)'
-    ax.text(txt_x, txt_y + 0.15, texto, color='green', fontsize=10, ha='center', va='bottom')
+    ax.text(txt_x, txt_y + 0.05, texto, color='green', fontsize=10, ha='center', va='bottom')
 
 def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base = kwargs['r_top'], kwargs['r_base']
@@ -170,20 +170,33 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
+    # Cota Horizontal Superior
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='center', fontsize=10, color='green')
     
+    # Cota Vertical Lateral
     line_x = w/2 + offset*0.5
     ax.plot([xtr1 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    ax.annotate(f'R{r_top:.2f}', xy=(-xtr1, ytr1+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-    ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+    def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
+        d = math.hypot(cx - tx, cy - ty)
+        if d == 0: return cx, cy
+        ux, uy = (cx - tx)/d, (cy - ty)/d
+        return (cx + r * ux, cy + r * uy) if concave else (cx - r * ux, cy - r * uy)
+        
+    tx_top, ty_top = -w/2 - offset*0.6, ytr1 + offset*0.4
+    px_top, py_top = get_perimeter_point(-xtr1, ytr1, r_top, tx_top, ty_top, False)
+    tx_base, ty_base = -offset*1.5, -offset*0.5
+    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base, False)
+
+    ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+    ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     
     desenhar_angulo_vertical(ax, tangentes['t1'], tangentes['t2'], ang, pos_ratio=0.5)
 
@@ -196,54 +209,58 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot(x, y, color='black', linewidth=1.5)
     ax.fill(x, y, color='#f0f2f6', alpha=0.5)
     
-    xtr2, ytr2, xcc2, ycc2 = centros
+    xtr2, ytr2, xcc2, ycc2, x_int, y_int = centros
     t1_x, t1_y = tangentes['t1']
     t2_x, t2_y = tangentes['t2']
     t3_x, t3_y = tangentes['t3']
     t4_x, t4_y = tangentes['t4']
-    x_int, y_int = tangentes['t_int']
     
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([-xcc2, xcc2], [ycc2, ycc2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Linhas construtivas indicando o prolongamento até o vértice virtual de 1.71
+    # Linhas de Construção do Vértice Virtual
     ax.plot([-t2_x, -x_int], [t2_y, y_int], color='green', lw=0.8, ls='-')
     ax.plot([-t3_x, -x_int], [t3_y, y_int], color='green', lw=0.8, ls='-')
     
+    # Cota Horizontal Superior
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='center', fontsize=10, color='green')
     
+    # Cota Vertical Lateral (Altura Total)
     line_x = w/2 + offset*0.5
     ax.plot([xtr2 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    # Cota Celta do Vértice (1.71)
+    # Cota Exata do Vértice (1.71)
     line_x_h = -w/2 - offset*0.8
-    ax.plot([line_x_h, line_x_h], [y_int, h], color='green', lw=0.8, ls='-') 
     ax.plot([-w/2 + 0.2, line_x_h - 0.2], [h, h], color='green', lw=0.8, ls='-') 
     ax.plot([-x_int, line_x_h - 0.2], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h, y_int), xytext=(line_x_h, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    # Texto alinhado explicitamente para a esquerda da linha
-    ax.text(line_x_h - gap, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    # Posicionado geometricamente ao centro, sem vazamento!
+    ax.text(line_x_h - gap, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    def get_perimeter_point(cx, cy, r, tx, ty):
+    # Restauração da Concatenação de Tangência Côncava
+    def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
         d = math.hypot(cx - tx, cy - ty)
         if d == 0: return cx, cy
         ux, uy = (cx - tx)/d, (cy - ty)/d
-        return (cx - r * ux, cy - r * uy)
+        return (cx + r * ux, cy + r * uy) if concave else (cx - r * ux, cy - r * uy)
 
     tx_top, ty_top = -w/2 - offset*0.6, ytr2 + offset*0.4
-    px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top)
+    px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top, False)
+    
+    # Fillet Côncavo: Direciona a seta perfeitamente até a curva interna da peça
     tx_conn, ty_conn = -w/2 - offset*0.7, ycc2 - offset*0.4
-    px_conn, py_conn = get_perimeter_point(-xcc2, ycc2, r_conn, tx_conn, ty_conn)
+    px_conn, py_conn = get_perimeter_point(-xcc2, ycc2, r_conn, tx_conn, ty_conn, concave=True)
+    
     tx_base, ty_base = -offset*1.5, -offset*0.5
-    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base)
+    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base, False)
 
     ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_conn:.2f}', xy=(px_conn, py_conn), xytext=(tx_conn, ty_conn), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
@@ -264,7 +281,6 @@ def desenhar_legenda_padrao(fig, titulo, data_str, cliente, responsavel, empresa
     
     v_align = 'center'
     
-    # Textos da Tabela Exatos
     ax_c.text(0.02, 0.875, f"PERFIL/PROJETO: {titulo}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
     ax_c.text(0.52, 0.875, f"EMPRESA:           {empresa}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
     
@@ -334,8 +350,8 @@ submit_button = st.button("Atualizar Desenho", type="primary", use_container_wid
 # ==========================================
 # 4. GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v23_iniciado' not in st.session_state:
-    st.session_state.app_v23_iniciado = True
+if submit_button or 'app_v24_iniciado' not in st.session_state:
+    st.session_state.app_v24_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
@@ -349,7 +365,10 @@ def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
     elif modelo == "Tipo T":
         desenhar_tipo_t(ax, poly, ang, centros, tangentes, w_global, h_global, kwargs)
 
+titulo_doc = ""
+
 if modo == "Individual":
+    titulo_doc = f"Perfil {perfil_sel} {w_global:.2f} x {h_global:.2f}"
     poly1, ang1, cent1, tang1 = processar_geometria(perfil_sel, kwargs_p1)
     if poly1 is None:
         st.error("Erro geométrico no perfil. Verifique as medidas.")
@@ -367,6 +386,7 @@ if modo == "Individual":
         st.pyplot(fig)
 
 elif modo == "Comparativo":
+    titulo_doc = f"Comparativo {w_global:.2f} x {h_global:.2f}"
     poly1, ang1, cent1, tang1 = processar_geometria(perfil_1, kwargs_p1)
     poly2, ang2, cent2, tang2 = processar_geometria(perfil_2, kwargs_p2)
     
