@@ -37,7 +37,7 @@ def gerar_perfil_triangular(w, h, r_top, r_base):
     except:
         return None, None, None, None
 
-def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
+def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
     try:
         alpha = math.radians(ang_sup_deg)
         x_tr, y_tr = (w / 2) - r_top, h - r_top
@@ -46,32 +46,27 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # 1. FIXAÇÃO NO PONTO DE TANGÊNCIA REAL (1.58)
-        t2_y = h - h_conn_val
-        k = (t2_y - t1_y) / v1_y if v1_y != 0 else 0
-        t2_x = t1_x + k * v1_x
+        # 1. PONTO DE INTERSECÇÃO VIVA DAS RAMPAS
+        y_int = h - h_conn_val
+        k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
+        x_int = t1_x + k * v1_x
         
-        # 2. CENTRO DO FILLET
-        x_cc = t2_x + r_conn * n1_x
-        y_cc = t2_y + r_conn * n1_y
+        # 2. RAMPA INFERIOR (Tangenciando a base a partir da intersecção)
+        dx_v = x_int
+        dy_v = y_int - r_base
+        dist_v = math.hypot(dx_v, dy_v)
         
-        # 3. RAMPA INFERIOR
-        dx = x_cc
-        dy = y_cc - r_base
-        dist = math.hypot(dx, dy)
-        gamma = math.atan2(dy, dx)
-        val = (r_base + r_conn) / dist
-        val = max(-1.0, min(1.0, val))
+        gamma = math.atan2(dy_v, dx_v)
+        val = r_base / dist_v
+        if val > 1.0: val = 1.0
+        elif val < -1.0: val = -1.0
         delta = math.acos(val)
         
         phi = gamma - delta 
         n2_x, n2_y = math.cos(phi), math.sin(phi)
         ang_inf_deg = -math.degrees(phi)
         
-        t3_x_pt = x_cc - r_conn * n2_x
-        t3_y_pt = y_cc - r_conn * n2_y
-        t4_x_pt = r_base * n2_x
-        t4_y_pt = r_base + r_base * n2_y
+        t2_x, t2_y = r_base * n2_x, r_base + r_base * n2_y
         
         def arc(cx, cy, r, a1, a2, cw=True, steps=64):
             pts = []
@@ -87,22 +82,19 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         a1_top, a2_top = math.pi / 2, math.atan2(n1_y, n1_x)
         arc_top = arc(x_tr, y_tr, r_top, a1_top, a2_top, cw=True)
         
-        a1_conn, a2_conn = math.atan2(-n1_y, -n1_x), math.atan2(-n2_y, -n2_x)
-        arc_conn = arc(x_cc, y_cc, r_conn, a1_conn, a2_conn, cw=False) 
-        
         a1_base, a2_base = math.atan2(n2_y, n2_x), -math.pi / 2
         arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
         
-        right_half = [(0, h), (x_tr, h)] + arc_top + arc_conn + arc_base + [(0, 0)]
+        # Montagem do Polígono sem arco de conexão
+        right_half = [(0, h), (x_tr, h)] + arc_top + [(x_int, y_int)] + arc_base + [(0, 0)]
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
         
         tangentes = {
-            't1': (t1_x, t1_y), 't2': (t2_x, t2_y),
-            't3': (t3_x_pt, t3_y_pt), 't4': (t4_x_pt, t4_y_pt)
+            't1': (t1_x, t1_y), 't_int': (x_int, y_int), 't2': (t2_x, t2_y)
         }
-        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc), tangentes
-    except:
+        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_int, y_int), tangentes
+    except Exception as e:
         return None, None, None, None
 
 # ==========================================
@@ -123,11 +115,10 @@ def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo):
     v_x, v_y = x2 - x1, y2 - y1
     
     if v_x != 0:
-        y_int = y1 - x1 * (v_y / v_x) # Intersecção com X=0
-        y_vis = (y1 + y2) / 2         # Centro vertical da rampa
+        y_int = y1 - x1 * (v_y / v_x)
+        y_vis = (y1 + y2) / 2         
         x_rampa = x1 + (y_vis - y1) * (v_x / v_y)
         
-        # Hipotenusa real garante que o arco encoste perfeitamente na linha
         raio_arco = math.hypot(x_rampa, y_vis - y_int)
         
         t1_arc, t2_arc = (90 - angulo, 90) if y_int < y_vis else (270, 270 + angulo)
@@ -168,19 +159,20 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     desenhar_angulo_tangente(ax, tangentes['t1'], tangentes['t2'], ang)
 
 def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
-    r_top, r_base, r_conn, h_conn, ang_sup = kwargs['r_top'], kwargs['r_base'], kwargs['r_conn'], kwargs['h_conn'], kwargs['ang_sup']
+    r_top, r_base, h_conn, ang_sup = kwargs['r_top'], kwargs['r_base'], kwargs['h_conn'], kwargs['ang_sup']
     offset = formatar_eixos(ax, w, h)
     
     x, y = poly.exterior.xy
     ax.plot(x, y, color='black', linewidth=1.5)
     ax.fill(x, y, color='#f0f2f6', alpha=0.5)
     
-    xtr2, ytr2, xcc2, ycc2 = centros
+    xtr2, ytr2, x_int, y_int = centros
+    t1_x, t1_y = tangentes['t1']
+    t_int_x, t_int_y = tangentes['t_int']
     t2_x, t2_y = tangentes['t2']
     
     # Marcadores de Centro
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
-    ax.plot([-xcc2, xcc2], [ycc2, ycc2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
     # Cotas Lineares Totais
@@ -194,34 +186,31 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
     
-    # Cota da Altura de Tangência (1.58 cravado no ponto de encontro da curva)
+    # Cota da Altura da Intersecção Viva (1.71)
     line_x_h = -w/2 - offset*0.8
     ax.plot([-w/2 + 0.2, line_x_h], [h, h], color='green', lw=0.8, ls='-') 
-    ax.plot([-t2_x - 0.2, line_x_h], [t2_y, t2_y], color='green', lw=0.8, ls='-') 
-    ax.annotate('', xy=(line_x_h + 0.2, t2_y), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x_h, (h + t2_y)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+    ax.plot([-x_int, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-') 
+    ax.annotate('', xy=(line_x_h + 0.2, y_int), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(line_x_h - 0.1, (h + y_int)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
     
-    # Cotas de Raio Calculadas pela Periferia
-    def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
+    # Cotas de Raio
+    def get_perimeter_point(cx, cy, r, tx, ty):
         d = math.hypot(cx - tx, cy - ty)
         if d == 0: return cx, cy
         ux, uy = (cx - tx)/d, (cy - ty)/d
-        return (cx + r * ux, cy + r * uy) if concave else (cx - r * ux, cy - r * uy)
+        return (cx - r * ux, cy - r * uy)
 
     tx_top, ty_top = -w/2 - offset*0.6, ytr2 + offset*0.4
-    px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top, False)
-    tx_conn, ty_conn = -w/2 - offset*0.7, ycc2 - offset*0.4
-    px_conn, py_conn = get_perimeter_point(-xcc2, ycc2, r_conn, tx_conn, ty_conn, True)
+    px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top)
     tx_base, ty_base = -offset*1.5, -offset*0.5
-    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base, False)
+    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base)
 
     ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-    ax.annotate(f'R{r_conn:.2f}', xy=(px_conn, py_conn), xytext=(tx_conn, ty_conn), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
     # Cotas de Ângulo Ancoradas no trecho reto
-    desenhar_angulo_tangente(ax, tangentes['t1'], tangentes['t2'], ang_sup)
-    desenhar_angulo_tangente(ax, tangentes['t3'], tangentes['t4'], ang)
+    desenhar_angulo_tangente(ax, (t1_x, t1_y), (t_int_x, t_int_y), ang_sup)
+    desenhar_angulo_tangente(ax, (t_int_x, t_int_y), (t2_x, t2_y), ang)
 
 # ==========================================
 # 3. INTERFACE E LÓGICA DINÂMICA
@@ -238,8 +227,7 @@ def renderizar_inputs(modelo, prefixo):
     params['r_base'] = st.number_input("Raio Base (mm)", value=0.45, step=0.05, format="%.2f", key=f"{prefixo}_rbase")
     
     if modelo == "Tipo T":
-        params['r_conn'] = st.number_input("Raio Conexão (mm)", value=0.50, step=0.05, format="%.2f", key=f"{prefixo}_rconn")
-        params['h_conn'] = st.number_input("Altura do Vértice Virtual (mm)", value=1.58, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
+        params['h_conn'] = st.number_input("Altura da Intersecção (mm)", value=1.71, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
         params['ang_sup'] = st.number_input("Ângulo Superior (°)", value=39.0, step=0.5, format="%.1f", key=f"{prefixo}_ang")
     
     st.divider()
@@ -247,7 +235,7 @@ def renderizar_inputs(modelo, prefixo):
 
 with st.sidebar.form("form_dinamico"):
     st.subheader("Medidas Globais")
-    w_global = st.number_input("Largura Total (mm)", value=4.20, step=0.10, format="%.2f")
+    w_global = st.number_input("Largura Total (mm)", value=5.30, step=0.10, format="%.2f")
     h_global = st.number_input("Altura Total (mm)", value=10.60, step=0.10, format="%.2f")
     densidade = st.number_input("Densidade (g/cm³)", value=8.50, step=0.10, format="%.2f")
     data_doc = st.date_input("Data de Emissão", value=date.today(), format="DD/MM/YYYY")
@@ -268,14 +256,14 @@ with st.sidebar.form("form_dinamico"):
 # ==========================================
 # GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v15_iniciado' not in st.session_state:
-    st.session_state.app_v15_iniciado = True
+if submit_button or 'app_v17_iniciado' not in st.session_state:
+    st.session_state.app_v17_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
         return gerar_perfil_triangular(w_global, h_global, kwargs['r_top'], kwargs['r_base'])
     elif modelo == "Tipo T":
-        return gerar_perfil_t_rampas(w_global, h_global, kwargs['r_top'], kwargs['r_base'], kwargs['r_conn'], kwargs['h_conn'], kwargs['ang_sup'])
+        return gerar_perfil_t_rampas(w_global, h_global, kwargs['r_top'], kwargs['r_base'], kwargs['h_conn'], kwargs['ang_sup'])
 
 def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
     if modelo == "Triangular":
