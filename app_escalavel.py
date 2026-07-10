@@ -4,6 +4,7 @@ import matplotlib.patches as patches
 from shapely.geometry import Polygon, Point, MultiPolygon
 import math
 import io
+import textwrap
 from datetime import date
 
 st.set_page_config(page_title="Gerador de Perfis - Superfine Steel", layout="wide")
@@ -42,17 +43,14 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         alpha = math.radians(ang_sup_deg)
         x_tr, y_tr = (w / 2) - r_top, h - r_top
         
-        # Normal (Outward) da Rampa Superior
         n1_x, n1_y = math.cos(alpha), -math.sin(alpha)
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # 1. VÉRTICE VIRTUAL INTOCÁVEL (Referência da Cota de Altura)
         y_int = h - h_conn_val
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
         
-        # 2. RAMPA INFERIOR (Tangenciando da Base até o Vértice Virtual)
         dx_v = x_int
         dy_v = y_int - r_base
         dist_v = math.hypot(dx_v, dy_v)
@@ -62,11 +60,9 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         delta = math.acos(val)
         
         phi = gamma - delta 
-        # Normal (Outward) da Rampa Inferior
         n2_x, n2_y = math.cos(phi), math.sin(phi)
         ang_inf_deg = -math.degrees(phi)
         
-        # 3. FILLET CÔNCAVO (Centro recuado geometricamente)
         det = n1_x * n2_y - n1_y * n2_x
         if det != 0:
             dx_c = r_conn * (n2_y - n1_y) / det
@@ -76,7 +72,6 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         else:
             x_cc, y_cc = x_int, y_int
             
-        # Pontos exatos de tangência do Fillet nas retas
         t2_x, t2_y = x_cc - r_conn * n1_x, y_cc - r_conn * n1_y
         t3_x, t3_y = x_cc - r_conn * n2_x, y_cc - r_conn * n2_y
         t4_x, t4_y = r_base * n2_x, r_base + r_base * n2_y
@@ -101,7 +96,6 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         a1_base, a2_base = math.atan2(n2_y, n2_x), -math.pi / 2
         arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
         
-        # Montagem unificada do Polígono contínuo
         right_half = [(0, h), (x_tr, h)] + arc_top + arc_conn + arc_base + [(0, 0)]
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
@@ -126,6 +120,10 @@ def formatar_eixos(ax, w, h):
     ax.set_ylim(-offset*3, h + offset*4)
     ax.plot([0, 0], [-offset*0.2, h + offset*0.2], color='#ff00ff', lw=0.8, ls='-.')
     return offset
+
+def desenhar_margem_pagina(fig):
+    margem = patches.Rectangle((0.05, 0.05), 0.9, 0.9, fill=False, lw=1.5, edgecolor='black', transform=fig.transFigure, figure=fig)
+    fig.patches.append(margem)
 
 def desenhar_angulo_vertical(ax, p1, p2, angulo_val, pos_ratio=0.5):
     x1, y1 = p1
@@ -155,7 +153,7 @@ def desenhar_angulo_vertical(ax, p1, p2, angulo_val, pos_ratio=0.5):
     txt_y = y_apex + R * math.sin(mid_ang)
     
     texto = f'{angulo_val:.0f}°' if abs(angulo_val - round(angulo_val)) < 0.1 else f'({angulo_val:.2f}°)'
-    ax.text(txt_x, txt_y + 0.05, texto, color='green', fontsize=10, ha='center', va='bottom')
+    ax.text(txt_x, txt_y + 0.15, texto, color='green', fontsize=10, ha='center', va='bottom')
 
 def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base = kwargs['r_top'], kwargs['r_base']
@@ -170,14 +168,12 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cota Horizontal Superior
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='center', fontsize=10, color='green')
     
-    # Cota Vertical Lateral
     line_x = w/2 + offset*0.5
     ax.plot([xtr1 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
@@ -219,33 +215,27 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xcc2, xcc2], [ycc2, ycc2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Linhas de Construção do Vértice Virtual
     ax.plot([-t2_x, -x_int], [t2_y, y_int], color='green', lw=0.8, ls='-')
     ax.plot([-t3_x, -x_int], [t3_y, y_int], color='green', lw=0.8, ls='-')
     
-    # Cota Horizontal Superior
     line_y = h + offset*0.4
     ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='center', fontsize=10, color='green')
     
-    # Cota Vertical Lateral (Altura Total)
     line_x = w/2 + offset*0.5
     ax.plot([xtr2 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    # Cota Exata do Vértice (1.71)
     line_x_h = -w/2 - offset*0.8
     ax.plot([-w/2 + 0.2, line_x_h - 0.2], [h, h], color='green', lw=0.8, ls='-') 
     ax.plot([-x_int, line_x_h - 0.2], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h, y_int), xytext=(line_x_h, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    # Posicionado geometricamente ao centro, sem vazamento!
     ax.text(line_x_h - gap, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
-    # Restauração da Concatenação de Tangência Côncava
     def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
         d = math.hypot(cx - tx, cy - ty)
         if d == 0: return cx, cy
@@ -255,7 +245,6 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     tx_top, ty_top = -w/2 - offset*0.6, ytr2 + offset*0.4
     px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top, False)
     
-    # Fillet Côncavo: Direciona a seta perfeitamente até a curva interna da peça
     tx_conn, ty_conn = -w/2 - offset*0.7, ycc2 - offset*0.4
     px_conn, py_conn = get_perimeter_point(-xcc2, ycc2, r_conn, tx_conn, ty_conn, concave=True)
     
@@ -270,7 +259,8 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     desenhar_angulo_vertical(ax, (t3_x, t3_y), (t4_x, t4_y), ang, pos_ratio=0.25)
 
 def desenhar_legenda_padrao(fig, titulo, data_str, cliente, responsavel, empresa, obs, area_info=None):
-    ax_c = fig.add_axes([0.1, 0.05, 0.8, 0.12]) 
+    # A legenda herda exatamente as coordenadas da margem inferior e as laterais
+    ax_c = fig.add_axes([0.05, 0.05, 0.9, 0.12]) 
     ax_c.axis('off')
     
     ax_c.add_patch(patches.Rectangle((0, 0), 1, 1, fill=False, lw=1.5, transform=ax_c.transAxes))
@@ -281,19 +271,31 @@ def desenhar_legenda_padrao(fig, titulo, data_str, cliente, responsavel, empresa
     
     v_align = 'center'
     
-    ax_c.text(0.02, 0.875, f"PERFIL/PROJETO: {titulo}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
-    ax_c.text(0.52, 0.875, f"EMPRESA:           {empresa}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    # Textos Separados: Labels (Negrito) e Valores (Normal)
+    ax_c.text(0.02, 0.875, "PERFIL/PROJETO:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.20, 0.875, titulo, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
     
-    ax_c.text(0.02, 0.625, f"CLIENTE:              {cliente}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
-    ax_c.text(0.52, 0.625, f"RESPONSÁVEL:   {responsavel}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.52, 0.875, "EMPRESA:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.72, 0.875, empresa, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
     
-    ax_c.text(0.02, 0.375, f"DATA DE EMISSÃO: {data_str}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
-    if area_info:
-        ax_c.text(0.52, 0.375, f"ÁREA / PESO:       {area_info}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
-    else:
-        ax_c.text(0.52, 0.375, "ÁREA / PESO:       VIDE DESENHO", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.02, 0.625, "CLIENTE:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.20, 0.625, cliente, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
     
-    ax_c.text(0.02, 0.125, f"OBSERVAÇÕES: {obs}", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.52, 0.625, "RESPONSÁVEL:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.72, 0.625, responsavel, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
+    
+    ax_c.text(0.02, 0.375, "DATA DE EMISSÃO:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.20, 0.375, data_str, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
+    
+    ax_c.text(0.52, 0.375, "ÁREA / PESO LINEAR:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    area_val = area_info if area_info else "VIDE DESENHO"
+    ax_c.text(0.72, 0.375, area_val, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
+    
+    ax_c.text(0.02, 0.125, "OBSERVAÇÕES:", fontsize=10, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    
+    # Motor TextWrap para garantir que textos longos não vazem as linhas
+    obs_wrapped = textwrap.fill(obs, width=115)
+    ax_c.text(0.16, 0.125, obs_wrapped, fontsize=10, fontweight='normal', transform=ax_c.transAxes, va=v_align)
 
 # ==========================================
 # 3. INTERFACE DE USUÁRIO (TOP-DOWN)
@@ -350,8 +352,8 @@ submit_button = st.button("Atualizar Desenho", type="primary", use_container_wid
 # ==========================================
 # 4. GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v24_iniciado' not in st.session_state:
-    st.session_state.app_v24_iniciado = True
+if submit_button or 'app_v25_iniciado' not in st.session_state:
+    st.session_state.app_v25_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
@@ -377,7 +379,9 @@ if modo == "Individual":
         peso = area * densidade
         
         fig = plt.figure(figsize=(10, 14))
-        ax = fig.add_axes([0.1, 0.25, 0.8, 0.7]) 
+        desenhar_margem_pagina(fig)
+        
+        ax = fig.add_axes([0.1, 0.20, 0.8, 0.70]) 
         plotar_geometria(ax, perfil_sel, poly1, ang1, cent1, tang1, kwargs_p1)
         
         area_string = f"{area:.3f} mm²  /  {peso:.1f} g/m"
@@ -397,8 +401,10 @@ elif modo == "Comparativo":
         reducao = ((area1 - area2) / area1) * 100
         
         fig = plt.figure(figsize=(14, 16))
-        ax1 = fig.add_axes([0.05, 0.25, 0.4, 0.65])
-        ax2 = fig.add_axes([0.55, 0.25, 0.4, 0.65])
+        desenhar_margem_pagina(fig)
+        
+        ax1 = fig.add_axes([0.05, 0.20, 0.4, 0.70])
+        ax2 = fig.add_axes([0.55, 0.20, 0.4, 0.70])
         
         plotar_geometria(ax1, perfil_1, poly1, ang1, cent1, tang1, kwargs_p1)
         ax1.text(0, h_global + max(w_global, h_global)*0.4, f"{area1*densidade:.1f} g/m\n(Densidade: {densidade} g/cm³)", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
@@ -408,7 +414,7 @@ elif modo == "Comparativo":
         ax2.text(0, h_global + max(w_global, h_global)*0.4, f"{area2*densidade:.1f} g/m\n(Densidade: {densidade} g/cm³)", ha='center', va='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='black', pad=5))
         ax2.text(0, -max(w_global, h_global)*0.3, f"Área: {area2:.3f} mm²", ha='center', va='center', fontsize=12)
         
-        fig.text(0.5, 0.22, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
+        fig.text(0.5, 0.19, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
         
         desenhar_legenda_padrao(fig, titulo_base, data_doc.strftime('%d/%m/%Y'), cliente, responsavel, empresa, obs)
         
