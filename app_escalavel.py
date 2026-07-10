@@ -32,7 +32,7 @@ def gerar_perfil_triangular(w, h, r_top, r_base):
         t1_x, t1_y = x_tr + r_top * n_x, y_tr + r_top * n_y
         t2_x, t2_y = r_base * n_x, r_base + r_base * n_y
         
-        tangentes = {'t1': (t1_x, t1_y), 't2': (t2_x, t2_y)}
+        tangentes = {'t1': (t1_x, t1_y), 't2': (t2_x, t2_y), 'v_x': -n_y, 'v_y': n_x}
         return poly, ang_deg, (x_tr, y_tr), tangentes
     except:
         return None, None, None, None
@@ -51,7 +51,7 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
         
-        # 2. RAMPA INFERIOR (Tangenciando a base a partir da intersecção)
+        # 2. RAMPA INFERIOR
         dx_v = x_int
         dy_v = y_int - r_base
         dist_v = math.hypot(dx_v, dy_v)
@@ -85,7 +85,6 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
         a1_base, a2_base = math.atan2(n2_y, n2_x), -math.pi / 2
         arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
         
-        # Montagem do Polígono sem arco de conexão
         right_half = [(0, h), (x_tr, h)] + arc_top + [(x_int, y_int)] + arc_base + [(0, 0)]
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
@@ -143,15 +142,17 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
+    # Cota Horizontal Superior
     ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, h + offset*0.4), xytext=(w/2, h + offset*0.4), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, h + offset*0.5, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    ax.text(0, h + offset*0.42, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
+    # Cota Vertical Lateral
     ax.plot([xtr1 + 0.2, w/2 + offset*0.6], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, w/2 + offset*0.6], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
+    ax.text(w/2 + offset*0.35, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     ax.annotate(f'R{r_top:.2f}', xy=(-xtr1, ytr1+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
@@ -175,23 +176,24 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cotas Lineares Totais
+    # Cota Horizontal Superior
     ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, h + offset*0.4), xytext=(w/2, h + offset*0.4), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, h + offset*0.5, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    ax.text(0, h + offset*0.42, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
+    # Cota Vertical Lateral (Altura Total)
     ax.plot([xtr2 + 0.2, w/2 + offset*0.6], [h, h], color='green', lw=0.8, ls='-')
     ax.plot([0.2, w/2 + offset*0.6], [0, 0], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
+    ax.text(w/2 + offset*0.35, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     # Cota da Altura da Intersecção Viva (1.71)
-    line_x_h = -w/2 - offset*0.8
+    line_x_h = -w/2 - offset*0.9
     ax.plot([-w/2 + 0.2, line_x_h], [h, h], color='green', lw=0.8, ls='-') 
     ax.plot([-x_int, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h + 0.2, y_int), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x_h - 0.1, (h + y_int)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+    ax.text(line_x_h + 0.15, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     # Cotas de Raio
     def get_perimeter_point(cx, cy, r, tx, ty):
@@ -208,7 +210,7 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-    # Cotas de Ângulo Ancoradas no trecho reto
+    # Cotas de Ângulo
     desenhar_angulo_tangente(ax, (t1_x, t1_y), (t_int_x, t_int_y), ang_sup)
     desenhar_angulo_tangente(ax, (t_int_x, t_int_y), (t2_x, t2_y), ang)
 
@@ -256,8 +258,8 @@ with st.sidebar.form("form_dinamico"):
 # ==========================================
 # GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v17_iniciado' not in st.session_state:
-    st.session_state.app_v17_iniciado = True
+if submit_button or 'app_v18_iniciado' not in st.session_state:
+    st.session_state.app_v18_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
