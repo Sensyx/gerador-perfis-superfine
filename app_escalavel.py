@@ -32,7 +32,7 @@ def gerar_perfil_triangular(w, h, r_top, r_base):
         t1_x, t1_y = x_tr + r_top * n_x, y_tr + r_top * n_y
         t2_x, t2_y = r_base * n_x, r_base + r_base * n_y
         
-        tangentes = {'t1': (t1_x, t1_y), 't2': (t2_x, t2_y), 'v_x': -n_y, 'v_y': n_x}
+        tangentes = {'t1': (t1_x, t1_y), 't2': (t2_x, t2_y)}
         return poly, ang_deg, (x_tr, y_tr), tangentes
     except:
         return None, None, None, None
@@ -124,15 +124,18 @@ def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo):
         ax.add_patch(patches.Arc((0, y_int), raio_arco*2, raio_arco*2, theta1=t1_arc, theta2=t2_arc, color='green', lw=1))
         
         mid_ang = math.radians(t1_arc + angulo/2)
-        txt_x = raio_arco * 0.7 * math.cos(mid_ang)
-        txt_y = y_int + raio_arco * 0.7 * math.sin(mid_ang)
+        txt_x = raio_arco * math.cos(mid_ang)
+        txt_y = y_int + raio_arco * math.sin(mid_ang)
         
         texto = f'{angulo:.0f}°' if abs(angulo - round(angulo)) < 0.1 else f'({angulo:.2f}°)'
-        ax.text(txt_x, txt_y, texto, color='green', fontsize=10, ha='center', va='center', bbox=dict(facecolor='#f0f2f6', edgecolor='none', pad=1, alpha=0.9))
+        
+        # O espaçamento (gap) e alinhamento va='bottom' garante o texto apoiado sobre a linha do arco
+        ax.text(txt_x, txt_y + 0.15, texto, color='green', fontsize=10, ha='center', va='bottom')
 
 def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base = kwargs['r_top'], kwargs['r_base']
     offset = formatar_eixos(ax, w, h)
+    gap = 0.15 # Espaçamento padrão normativo
     
     x, y = poly.exterior.xy
     ax.plot(x, y, color='black', linewidth=1.5)
@@ -142,17 +145,19 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cota Horizontal Superior
-    ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
-    ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
-    ax.annotate('', xy=(-w/2, h + offset*0.4), xytext=(w/2, h + offset*0.4), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, h + offset*0.42, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    # Cota Horizontal Superior (Texto acima da linha)
+    line_y = h + offset*0.4
+    ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
+    ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
+    ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
-    # Cota Vertical Lateral
-    ax.plot([xtr1 + 0.2, w/2 + offset*0.6], [h, h], color='green', lw=0.8, ls='-')
-    ax.plot([0.2, w/2 + offset*0.6], [0, 0], color='green', lw=0.8, ls='-')
-    ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(w/2 + offset*0.35, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    # Cota Vertical Lateral (Texto à esquerda da linha)
+    line_x = w/2 + offset*0.5
+    ax.plot([xtr1 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
+    ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
+    ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     ax.annotate(f'R{r_top:.2f}', xy=(-xtr1, ytr1+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
@@ -162,6 +167,7 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
 def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base, h_conn, ang_sup = kwargs['r_top'], kwargs['r_base'], kwargs['h_conn'], kwargs['ang_sup']
     offset = formatar_eixos(ax, w, h)
+    gap = 0.15 # Espaçamento padrão normativo
     
     x, y = poly.exterior.xy
     ax.plot(x, y, color='black', linewidth=1.5)
@@ -176,24 +182,26 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cota Horizontal Superior
-    ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
-    ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
-    ax.annotate('', xy=(-w/2, h + offset*0.4), xytext=(w/2, h + offset*0.4), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(0, h + offset*0.42, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
+    # Cota Horizontal Superior (Texto acima da linha)
+    line_y = h + offset*0.4
+    ax.plot([-w/2, -w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
+    ax.plot([w/2, w/2], [h, line_y + 0.2], color='green', lw=0.8, ls='-')
+    ax.annotate('', xy=(-w/2, line_y), xytext=(w/2, line_y), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(0, line_y + gap, f'{w:.2f}', ha='center', va='bottom', fontsize=10, color='green')
     
     # Cota Vertical Lateral (Altura Total)
-    ax.plot([xtr2 + 0.2, w/2 + offset*0.6], [h, h], color='green', lw=0.8, ls='-')
-    ax.plot([0.2, w/2 + offset*0.6], [0, 0], color='green', lw=0.8, ls='-')
-    ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(w/2 + offset*0.35, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    line_x = w/2 + offset*0.5
+    ax.plot([xtr2 + 0.2, line_x + 0.2], [h, h], color='green', lw=0.8, ls='-')
+    ax.plot([0.2, line_x + 0.2], [0, 0], color='green', lw=0.8, ls='-')
+    ax.annotate('', xy=(line_x, 0), xytext=(line_x, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(line_x - gap, h/2, f'{h:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     # Cota da Altura da Intersecção Viva (1.71)
-    line_x_h = -w/2 - offset*0.9
-    ax.plot([-w/2 + 0.2, line_x_h], [h, h], color='green', lw=0.8, ls='-') 
-    ax.plot([-x_int, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-') 
-    ax.annotate('', xy=(line_x_h + 0.2, y_int), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x_h + 0.15, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
+    line_x_h = -w/2 - offset*0.8
+    ax.plot([-w/2 + 0.2, line_x_h - 0.2], [h, h], color='green', lw=0.8, ls='-') 
+    ax.plot([-x_int, line_x_h - 0.2], [y_int, y_int], color='green', lw=0.8, ls='-') 
+    ax.annotate('', xy=(line_x_h, y_int), xytext=(line_x_h, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(line_x_h - gap, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='bottom', fontsize=10, color='green', rotation=90)
     
     # Cotas de Raio
     def get_perimeter_point(cx, cy, r, tx, ty):
@@ -258,8 +266,8 @@ with st.sidebar.form("form_dinamico"):
 # ==========================================
 # GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v18_iniciado' not in st.session_state:
-    st.session_state.app_v18_iniciado = True
+if submit_button or 'app_v19_iniciado' not in st.session_state:
+    st.session_state.app_v19_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
