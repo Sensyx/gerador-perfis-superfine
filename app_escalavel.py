@@ -10,7 +10,7 @@ st.set_page_config(page_title="Gerador de Perfis - Superfine Steel", layout="wid
 st.title("Sistema Paramétrico de Laminação de Perfis")
 
 # ==========================================
-# 1. MOTORES MATEMÁTICOS GEOMÉTRICOS
+# 1. MOTORES MATEMÁTICOS GEOMÉTRICS
 # ==========================================
 def gerar_perfil_triangular(w, h, r_top, r_base):
     try:
@@ -41,22 +41,45 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
     try:
         alpha = math.radians(ang_sup_deg)
         x_tr, y_tr = (w / 2) - r_top, h - r_top
+        
         n1_x, n1_y = math.cos(alpha), -math.sin(alpha)
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        t2_y = h - h_conn_val
-        k = (t2_y - t1_y) / v1_y if v1_y != 0 else 0
-        t2_x = t1_x + k * v1_x
-        x_cc, y_cc = t2_x + r_conn * n1_x, t2_y + r_conn * n1_y
+        # 1. INTERSECÇÃO VIRTUAL DAS RAMPAS (VÉRTICE ANTES DO FILLET)
+        y_int = h - h_conn_val
+        k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
+        x_int = t1_x + k * v1_x
         
-        dx, dy = x_cc, y_cc - r_base
-        dist = math.hypot(dx, dy)
-        gamma, delta = math.atan2(dy, dx), math.acos((r_base + r_conn) / dist)
+        # 2. DEFINIÇÃO DA RAMPA INFERIOR COM BASE NO VÉRTICE VIRTUAL
+        dx_v = x_int
+        dy_v = y_int - r_base
+        dist_v = math.hypot(dx_v, dy_v)
+        
+        gamma = math.atan2(dy_v, dx_v)
+        val = r_base / dist_v
+        if val > 1.0: val = 1.0
+        elif val < -1.0: val = -1.0
+        delta = math.acos(val)
+        
         phi = gamma - delta 
-        
         n2_x, n2_y = math.cos(phi), math.sin(phi)
         ang_inf_deg = -math.degrees(phi)
+        
+        # 3. CÁLCULO EXATO DO FILLET (RAIO DE CONEXÃO)
+        det = n1_x * n2_y - n1_y * n2_x
+        if det != 0:
+            dx_c = r_conn * (n2_y - n1_y) / det
+            dy_c = r_conn * (n1_x - n2_x) / det
+            x_cc = x_int - dx_c
+            y_cc = y_int - dy_c
+        else:
+            x_cc, y_cc = x_int, y_int
+            
+        t2_x = x_cc + r_conn * n1_x
+        t2_y = y_cc + r_conn * n1_y
+        t3_x_pt = x_cc + r_conn * n2_x
+        t3_y_pt = y_cc + r_conn * n2_y
         
         def arc(cx, cy, r, a1, a2, cw=True, steps=64):
             pts = []
@@ -71,8 +94,10 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
 
         a1_top, a2_top = math.pi / 2, math.atan2(n1_y, n1_x)
         arc_top = arc(x_tr, y_tr, r_top, a1_top, a2_top, cw=True)
+        
         a1_conn, a2_conn = math.atan2(-n1_y, -n1_x), math.atan2(-n2_y, -n2_x)
         arc_conn = arc(x_cc, y_cc, r_conn, a1_conn, a2_conn, cw=False) 
+        
         a1_base, a2_base = math.atan2(n2_y, n2_x), -math.pi / 2
         arc_base = arc(0, r_base, r_base, a1_base, a2_base, cw=True)
         
@@ -80,12 +105,15 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, r_conn, h_conn_val, ang_sup_deg):
         left_half = [(-x, y) for x, y in reversed(right_half)]
         poly_points = right_half + left_half[1:-1]
         
-        t3_x_pt, t3_y_pt = x_cc - r_conn * n2_x, y_cc - r_conn * n2_y
         t4_x_pt, t4_y_pt = r_base * n2_x, r_base + r_base * n2_y
         
-        tangentes = {'t1': (t1_x, t1_y), 'v1': (t2_x - t1_x, t2_y - t1_y),
-                     't3': (t3_x_pt, t3_y_pt), 'v2': (t4_x_pt - t3_x_pt, t4_y_pt - t3_y_pt)}
-        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, t2_x, t2_y), tangentes
+        tangentes = {
+            't1': (t1_x, t1_y), 't2': (t2_x, t2_y),
+            't3': (t3_x_pt, t3_y_pt), 'v1': (x_int - t1_x, y_int - t1_y),
+            'v2': (t4_x_pt - x_int, t4_y_pt - y_int),
+            'a1_conn': a1_conn, 'a2_conn': a2_conn
+        }
+        return Polygon(poly_points), ang_inf_deg, (x_tr, y_tr, x_cc, y_cc, x_int, y_int), tangentes
     except:
         return None, None, None, None
 
@@ -113,7 +141,6 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-xtr1, xtr1], [ytr1, ytr1], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
-    # Cotas Lineares
     ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.annotate('', xy=(-w/2, h + offset*0.4), xytext=(w/2, h + offset*0.4), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
@@ -124,7 +151,6 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
     
-    # Raios e Ângulos
     ax.annotate(f'R{r_top:.2f}', xy=(-xtr1, ytr1+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     
@@ -148,11 +174,23 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot(x, y, color='black', linewidth=1.5)
     ax.fill(x, y, color='#f0f2f6', alpha=0.5)
     
-    xtr2, ytr2, xcc2, ycc2, pt2_x, pt2_y = centros
+    xtr2, ytr2, xcc2, ycc2, x_int, y_int = centros
+    t1_x, t1_y = tangentes['t1']
+    t2_x, t2_y = tangentes['t2']
+    t3_x, t3_y = tangentes['t3']
+    
+    # Marcadores de Centro
     ax.plot([-xtr2, xtr2], [ytr2, ytr2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([-xcc2, xcc2], [ycc2, ycc2], marker='+', color='#ff00ff', markersize=8, ls='None')
     ax.plot([0], [r_base], marker='+', color='#ff00ff', markersize=8, ls='None')
     
+    # Construções Virtuais do Fillet (Estilo CAD)
+    ax.plot([-t2_x, -x_int], [t2_y, y_int], color='#34495e', lw=0.8, ls='--')
+    ax.plot([-t3_x, -x_int], [t3_y, y_int], color='#34495e', lw=0.8, ls='--')
+    ax.plot([t2_x, x_int], [t2_y, y_int], color='#34495e', lw=0.8, ls='--')
+    ax.plot([t3_x, x_int], [t3_y, y_int], color='#34495e', lw=0.8, ls='--')
+    ax.plot([-x_int, x_int], [y_int, y_int], marker='s', color='#f1c40f', markeredgecolor='black', markersize=4, ls='None')
+
     # Cotas Lineares
     ax.plot([-w/2, -w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
     ax.plot([w/2, w/2], [h, h + offset*0.5], color='green', lw=0.8, ls='-')
@@ -164,27 +202,39 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate('', xy=(w/2 + offset*0.4, 0), xytext=(w/2 + offset*0.4, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
     ax.text(w/2 + offset*0.6, h/2, f'{h:.2f}', ha='left', va='center', fontsize=10, color='green', rotation=90)
     
-    # Altura Tangência T
+    # Altura Tangência (Puxada do Vértice de Intersecção)
     line_x_h = -w/2 - offset*0.8
     ax.plot([-w/2 + 0.2, line_x_h], [h, h], color='green', lw=0.8, ls='-') 
-    ax.plot([-pt2_x - 0.2, line_x_h], [pt2_y, pt2_y], color='green', lw=0.8, ls='-')
-    ax.annotate('', xy=(line_x_h + 0.2, pt2_y), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    ax.text(line_x_h, (h + pt2_y)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
+    ax.plot([-x_int - 0.2, line_x_h], [y_int, y_int], color='green', lw=0.8, ls='-')
+    ax.annotate('', xy=(line_x_h + 0.2, y_int), xytext=(line_x_h + 0.2, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
+    ax.text(line_x_h, (h + y_int)/2, f'{h_conn:.2f}', ha='right', va='center', fontsize=10, color='green', rotation=90)
     
-    # Raios e Ângulos
-    ax.annotate(f'R{r_top:.2f}', xy=(-xtr2, ytr2+r_top), xytext=(-w/2 - offset, h + offset*0.2), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-    ax.annotate(f'R{r_conn:.2f}', xy=(-xcc2+r_conn, ycc2), xytext=(-w/2 - offset, ycc2 - offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
-    ax.annotate(f'R{r_base:.2f}', xy=(0, 0), xytext=(-offset*1.5, -offset*0.5), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+    # Cotas de Raio
+    def get_perimeter_point(cx, cy, r, tx, ty, concave=False):
+        d = math.hypot(cx - tx, cy - ty)
+        if d == 0: return cx, cy
+        ux, uy = (cx - tx)/d, (cy - ty)/d
+        return (cx + r * ux, cy + r * uy) if concave else (cx - r * ux, cy - r * uy)
 
-    t1_x, t1_y = tangentes['t1']
+    tx_top, ty_top = -w/2 - offset*0.6, ytr2 + offset*0.4
+    px_top, py_top = get_perimeter_point(-xtr2, ytr2, r_top, tx_top, ty_top, False)
+    tx_conn, ty_conn = -w/2 - offset*0.7, ycc2 - offset*0.4
+    px_conn, py_conn = get_perimeter_point(-xcc2, ycc2, r_conn, tx_conn, ty_conn, True)
+    tx_base, ty_base = -offset*1.5, -offset*0.5
+    px_base, py_base = get_perimeter_point(0, r_base, r_base, tx_base, ty_base, False)
+
+    ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+    ax.annotate(f'R{r_conn:.2f}', xy=(px_conn, py_conn), xytext=(tx_conn, ty_conn), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+    ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
+
+    # Cotas de Ângulo
     v1_x, v1_y = tangentes['v1']
-    t3_x, t3_y = tangentes['t3']
     v2_x, v2_y = tangentes['v2']
     text_bbox = dict(facecolor='#f0f2f6', edgecolor='none', pad=1, alpha=0.9)
     
     if v1_x != 0:
         y_int_sup = t1_y - t1_x * (v1_y / v1_x)
-        y_vis_sup = (t1_y + pt2_y) / 2 
+        y_vis_sup = (t1_y + y_int) / 2 
         raio_arco_sup = abs(y_vis_sup - y_int_sup)
         ax.add_patch(patches.Arc((0, y_int_sup), raio_arco_sup*2, raio_arco_sup*2, theta1=90-ang_sup, theta2=90, color='green', lw=1))
         x_rampa_sup = t1_x + (y_vis_sup - t1_y) * (v1_x / v1_y)
@@ -192,7 +242,7 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
 
     if v2_x != 0:
         y_int_inf = t3_y - t3_x * (v2_y / v2_x)
-        t4_y_pt = tangentes['v2'][1] + t3_y 
+        t4_y_pt = tangentes['v2'][1] + y_int 
         y_vis_inf = (t3_y + t4_y_pt) / 2 
         raio_arco_inf = abs(y_vis_inf - y_int_inf)
         t1_arc, t2_arc = (90 - ang, 90) if y_int_inf < y_vis_inf else (270, 270 + ang)
@@ -208,7 +258,6 @@ modo = st.sidebar.radio("Modo de Análise", ["Individual", "Comparativo"])
 
 perfis_disponiveis = ["Triangular", "Tipo T"]
 
-# Função dinâmica para gerar apenas os campos necessários de acordo com o modelo selecionado
 def renderizar_inputs(modelo, prefixo):
     params = {}
     st.markdown(f"**Parâmetros: {modelo}**")
@@ -217,7 +266,7 @@ def renderizar_inputs(modelo, prefixo):
     
     if modelo == "Tipo T":
         params['r_conn'] = st.number_input("Raio Conexão (mm)", value=0.50, step=0.05, format="%.2f", key=f"{prefixo}_rconn")
-        params['h_conn'] = st.number_input("Altura Tangência (mm)", value=1.71, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
+        params['h_conn'] = st.number_input("Altura do Vértice de Intersecção (mm)", value=1.58, step=0.05, format="%.2f", key=f"{prefixo}_hconn")
         params['ang_sup'] = st.number_input("Ângulo Superior (°)", value=39.0, step=0.5, format="%.1f", key=f"{prefixo}_ang")
     
     st.divider()
@@ -225,7 +274,7 @@ def renderizar_inputs(modelo, prefixo):
 
 with st.sidebar.form("form_dinamico"):
     st.subheader("Medidas Globais")
-    w_global = st.number_input("Largura Total (mm)", value=5.30, step=0.10, format="%.2f")
+    w_global = st.number_input("Largura Total (mm)", value=4.20, step=0.10, format="%.2f")
     h_global = st.number_input("Altura Total (mm)", value=10.60, step=0.10, format="%.2f")
     densidade = st.number_input("Densidade (g/cm³)", value=8.50, step=0.10, format="%.2f")
     data_doc = st.date_input("Data de Emissão", value=date.today(), format="DD/MM/YYYY")
@@ -246,10 +295,9 @@ with st.sidebar.form("form_dinamico"):
 # ==========================================
 # GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_iniciado' not in st.session_state:
-    st.session_state.app_iniciado = True
+if submit_button or 'app_v10_iniciado' not in st.session_state:
+    st.session_state.app_v10_iniciado = True
 
-# Função Helper para centralizar as chamadas de geometria
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
         return gerar_perfil_triangular(w_global, h_global, kwargs['r_top'], kwargs['r_base'])
@@ -272,7 +320,6 @@ if modo == "Individual":
         ax = fig.add_subplot(111)
         plotar_geometria(ax, perfil_sel, poly1, ang1, cent1, tang1, kwargs_p1)
         
-        # Carimbo Simples
         texto_carimbo = f"Superfine Steel Aços Inoxidáveis\nPerfil {perfil_sel}\nÁrea: {area:.3f} mm²\nPeso: {area*densidade:.1f} g/m\nData: {data_doc.strftime('%d/%m/%Y')}"
         ax.text(w_global/2 + max(w_global, h_global)*0.15, h_global, texto_carimbo, ha='left', va='top', bbox=dict(facecolor='white', edgecolor='black', boxstyle='square,pad=0.8'), fontsize=8, family='monospace')
         
@@ -303,7 +350,6 @@ elif modo == "Comparativo":
         
         fig.text(0.5, 0.28, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
         
-        # Carimbo Profissional
         ax_carimbo = fig.add_axes([0.1, 0.05, 0.8, 0.15])
         ax_carimbo.axis('off')
         ax_carimbo.add_patch(patches.Rectangle((0, 0), 1, 1, fill=False, lw=1.5, transform=ax_carimbo.transAxes))
@@ -334,7 +380,6 @@ elif modo == "Comparativo":
         
         st.pyplot(fig)
 
-# Rotina de Exportação Independente do Modo
 def criar_pdf(figura):
     buf = io.BytesIO()
     figura.savefig(buf, format="pdf", bbox_inches="tight", pad_inches=0.2)
