@@ -46,12 +46,10 @@ def gerar_perfil_t_rampas(w, h, r_top, r_base, h_conn_val, ang_sup_deg):
         t1_x, t1_y = x_tr + r_top * n1_x, y_tr + r_top * n1_y
         v1_x, v1_y = -math.sin(alpha), -math.cos(alpha)
         
-        # PONTO DE INTERSECÇÃO VIVA DAS RAMPAS
         y_int = h - h_conn_val
         k = (y_int - t1_y) / v1_y if v1_y != 0 else 0
         x_int = t1_x + k * v1_x
         
-        # RAMPA INFERIOR
         dx_v = x_int
         dy_v = y_int - r_base
         dist_v = math.hypot(dx_v, dy_v)
@@ -109,7 +107,6 @@ def formatar_eixos(ax, w, h):
     return offset
 
 def desenhar_angulo_tangente(ax, pt_start, pt_end, angulo, pos_ratio=0.5):
-    """ pos_ratio controla o deslizamento do ângulo ao longo da rampa (0.0 a 1.0) """
     x1, y1 = pt_start
     x2, y2 = pt_end
     v_x, v_y = x2 - x1, y2 - y1
@@ -194,7 +191,6 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.plot([-w/2 + 0.2, line_x_h - 0.2], [h, h], color='green', lw=0.8, ls='-') 
     ax.plot([-x_int, line_x_h - 0.2], [y_int, y_int], color='green', lw=0.8, ls='-') 
     ax.annotate('', xy=(line_x_h, y_int), xytext=(line_x_h, h), arrowprops=dict(arrowstyle='<|-|>', color='green', lw=1))
-    # TEXTO SEPARADO MILIMETRICAMENTE DA COTA
     ax.text(line_x_h - 0.2, (h + y_int)/2, f'{h_conn:.2f}', ha='center', va='center', fontsize=10, color='green', rotation=90)
     
     def get_perimeter_point(cx, cy, r, tx, ty):
@@ -211,7 +207,6 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     ax.annotate(f'R{r_top:.2f}', xy=(px_top, py_top), xytext=(tx_top, ty_top), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
     ax.annotate(f'R{r_base:.2f}', xy=(px_base, py_base), xytext=(tx_base, ty_base), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
-    # CONTROLE DE DESLIZAMENTO DO ÂNGULO: 75% da rampa para baixo
     desenhar_angulo_tangente(ax, (t1_x, t1_y), (t_int_x, t_int_y), ang_sup, pos_ratio=0.75)
     desenhar_angulo_tangente(ax, (t_int_x, t_int_y), (t2_x, t2_y), ang, pos_ratio=0.30)
 
@@ -226,26 +221,30 @@ def desenhar_legenda_padrao(fig, titulo, data_str, cliente, responsavel, empresa
     ax_c.plot([0, 1], [0.25, 0.25], color='black', lw=1, transform=ax_c.transAxes)
     ax_c.plot([0.5, 0.5], [0.25, 1.0], color='black', lw=1, transform=ax_c.transAxes)
     
-    # Injeção dos Textos
-    ax_c.text(0.02, 0.875, "PERFIL/PROJETO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.15, 0.875, titulo, fontsize=10, transform=ax_c.transAxes)
-    ax_c.text(0.52, 0.875, "EMPRESA:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.65, 0.875, empresa, fontsize=10, transform=ax_c.transAxes)
+    # Parâmetros de espaçamento perfeitos para evitar sobreposição
+    v_align = 'center'
+    x_lbl_1, x_val_1 = 0.02, 0.22
+    x_lbl_2, x_val_2 = 0.52, 0.74
     
-    ax_c.text(0.02, 0.625, "CLIENTE:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.15, 0.625, cliente, fontsize=10, transform=ax_c.transAxes)
-    ax_c.text(0.52, 0.625, "RESPONSÁVEL:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.65, 0.625, responsavel, fontsize=10, transform=ax_c.transAxes)
+    ax_c.text(x_lbl_1, 0.875, "PERFIL/PROJETO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_val_1, 0.875, titulo, fontsize=10, transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_lbl_2, 0.875, "EMPRESA:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_val_2, 0.875, empresa, fontsize=10, transform=ax_c.transAxes, va=v_align)
     
-    ax_c.text(0.02, 0.375, "DATA DE EMISSÃO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.15, 0.375, data_str, fontsize=10, transform=ax_c.transAxes)
+    ax_c.text(x_lbl_1, 0.625, "CLIENTE:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_val_1, 0.625, cliente, fontsize=10, transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_lbl_2, 0.625, "RESPONSÁVEL:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_val_2, 0.625, responsavel, fontsize=10, transform=ax_c.transAxes, va=v_align)
+    
+    ax_c.text(x_lbl_1, 0.375, "DATA DE EMISSÃO:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(x_val_1, 0.375, data_str, fontsize=10, transform=ax_c.transAxes, va=v_align)
     
     if area_info:
-        ax_c.text(0.52, 0.375, "ÁREA / PESO LINEAR:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-        ax_c.text(0.65, 0.375, area_info, fontsize=10, transform=ax_c.transAxes)
+        ax_c.text(x_lbl_2, 0.375, "ÁREA / PESO LINEAR:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+        ax_c.text(x_val_2, 0.375, area_info, fontsize=10, transform=ax_c.transAxes, va=v_align)
     
-    ax_c.text(0.02, 0.125, "OBSERVAÇÕES:", fontsize=8, fontweight='bold', transform=ax_c.transAxes)
-    ax_c.text(0.15, 0.125, obs, fontsize=10, transform=ax_c.transAxes)
+    ax_c.text(x_lbl_1, 0.125, "OBSERVAÇÕES:", fontsize=8, fontweight='bold', transform=ax_c.transAxes, va=v_align)
+    ax_c.text(0.15, 0.125, obs, fontsize=10, transform=ax_c.transAxes, va=v_align)
 
 
 # ==========================================
@@ -295,13 +294,13 @@ else:
         kwargs_p2 = renderizar_inputs("p2")
     
 st.divider()
-submit_button = st.button("Gerar Documento de Engenharia", type="primary", use_container_width=True)
+submit_button = st.button("Atualizar Desenho", type="primary", use_container_width=True)
 
 # ==========================================
 # 4. GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v20_iniciado' not in st.session_state:
-    st.session_state.app_v20_iniciado = True
+if submit_button or 'app_v21_iniciado' not in st.session_state:
+    st.session_state.app_v21_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
@@ -315,7 +314,11 @@ def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
     elif modelo == "Tipo T":
         desenhar_tipo_t(ax, poly, ang, centros, tangentes, w_global, h_global, kwargs)
 
+# Inicializa a variável do título dinâmico
+titulo_doc = ""
+
 if modo == "Individual":
+    titulo_doc = f"Perfil {perfil_sel} {w_global:.2f} x {h_global:.2f}"
     poly1, ang1, cent1, tang1 = processar_geometria(perfil_sel, kwargs_p1)
     if poly1 is None:
         st.error("Erro geométrico no perfil. Verifique as medidas.")
@@ -327,13 +330,13 @@ if modo == "Individual":
         ax = fig.add_axes([0.1, 0.25, 0.8, 0.7]) 
         plotar_geometria(ax, perfil_sel, poly1, ang1, cent1, tang1, kwargs_p1)
         
-        titulo_doc = f"Perfil {perfil_sel} {w_global:.2f} x {h_global:.2f}"
         area_string = f"{area:.3f} mm²  /  {peso:.1f} g/m"
         desenhar_legenda_padrao(fig, titulo_doc, data_doc.strftime('%d/%m/%Y'), cliente, responsavel, empresa, obs, area_string)
         
         st.pyplot(fig)
 
 elif modo == "Comparativo":
+    titulo_doc = f"Comparativo {w_global:.2f} x {h_global:.2f}"
     poly1, ang1, cent1, tang1 = processar_geometria(perfil_1, kwargs_p1)
     poly2, ang2, cent2, tang2 = processar_geometria(perfil_2, kwargs_p2)
     
@@ -357,7 +360,6 @@ elif modo == "Comparativo":
         
         fig.text(0.5, 0.22, f"Redução de {reducao:.2f}%" if reducao > 0 else f"Aumento de {abs(reducao):.2f}%", ha='center', va='center', fontsize=16, fontweight='bold')
         
-        titulo_doc = f"Comparativo {w_global:.2f} x {h_global:.2f}"
         desenhar_legenda_padrao(fig, titulo_doc, data_doc.strftime('%d/%m/%Y'), cliente, responsavel, empresa, obs)
         
         st.pyplot(fig)
@@ -372,7 +374,7 @@ if 'fig' in locals():
     st.download_button(
         label="📄 Fazer Download do Documento PDF",
         data=criar_pdf(fig),
-        file_name=f"projeto_{w_global:.2f}x{h_global:.2f}.pdf",
+        file_name=f"{titulo_doc.replace(' ', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True
     )
