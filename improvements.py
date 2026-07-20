@@ -143,13 +143,22 @@ def gerar_perfil_redondo(d):
 # ==========================================
 # 2. MÓDULOS DE RENDERIZAÇÃO E CARIMBO
 # ==========================================
-def formatar_eixos(ax, w, h):
-    offset = max(w, h) * 0.15 
+def formatar_eixos(ax, w_canvas, h_canvas, h_line=None):
+    """
+    h_line desvincula o tamanho da linha magenta da altura do canvas comparativo.
+    Se não fornecido, assume a altura total da folha.
+    """
+    if h_line is None:
+        h_line = h_canvas
+        
+    offset = max(w_canvas, h_canvas) * 0.15 
     ax.axis('off')
     ax.set_aspect('equal')
-    ax.set_xlim(-w/2 - offset*2.5, w/2 + offset*2.5)
-    ax.set_ylim(-offset*3, h + offset*4)
-    ax.plot([0, 0], [-offset*0.2, h + offset*0.2], color='#ff00ff', lw=0.8, ls='-.')
+    ax.set_xlim(-w_canvas/2 - offset*2.5, w_canvas/2 + offset*2.5)
+    ax.set_ylim(-offset*3, h_canvas + offset*4)
+    
+    # Linha de Centro Dinâmica
+    ax.plot([0, 0], [-offset*0.2, h_line + offset*0.2], color='#ff00ff', lw=0.8, ls='-.')
     return offset
 
 def desenhar_margem_pagina(fig):
@@ -188,7 +197,7 @@ def desenhar_angulo_vertical(ax, p1, p2, angulo_val, pos_ratio=0.5):
 
 def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base = kwargs['r_top'], kwargs['r_base']
-    offset = formatar_eixos(ax, w, h)
+    offset = formatar_eixos(ax, w, h, h_line=h)
     gap = 0.15 
     
     x, y = poly.exterior.xy
@@ -229,7 +238,7 @@ def desenhar_triangular(ax, poly, ang, centros, tangentes, w, h, kwargs):
 
 def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
     r_top, r_base, r_conn, h_conn, ang_sup = kwargs['r_top'], kwargs['r_base'], kwargs['r_conn'], kwargs['h_conn'], kwargs['ang_sup']
-    offset = formatar_eixos(ax, w, h)
+    offset = formatar_eixos(ax, w, h, h_line=h)
     gap = 0.15 
     
     x, y = poly.exterior.xy
@@ -291,7 +300,8 @@ def desenhar_tipo_t(ax, poly, ang, centros, tangentes, w, h, kwargs):
 
 def desenhar_retangular(ax, poly, w, h_eff, w_canvas, h_canvas, kwargs):
     r = kwargs.get('r_cantos', 0.0)
-    offset = formatar_eixos(ax, w_canvas, h_canvas)
+    # A linha magenta respeitará apenas a altura física da peça desenhada
+    offset = formatar_eixos(ax, w_canvas, h_canvas, h_line=h_eff)
     gap = 0.15
     
     x, y = poly.exterior.xy
@@ -320,7 +330,8 @@ def desenhar_retangular(ax, poly, w, h_eff, w_canvas, h_canvas, kwargs):
         ax.annotate(f'R{r:.2f}', xy=(px, py), xytext=(tx, ty), arrowprops=dict(arrowstyle='->', color='green', lw=1), fontsize=10, color='green')
 
 def desenhar_redondo(ax, poly, d, w_canvas, h_canvas):
-    offset = formatar_eixos(ax, w_canvas, h_canvas)
+    # A linha magenta no Redondo para exatamente na altura do Diâmetro
+    offset = formatar_eixos(ax, w_canvas, h_canvas, h_line=d)
     gap = 0.15
     
     x, y = poly.exterior.xy
@@ -406,11 +417,12 @@ def renderizar_inputs(modelo, prefixo):
             ang_sup = col5.number_input("Ângulo Superior (°)", value=39.0, step=0.5, format="%.1f", key=f"{prefixo}_ang")
             return {'r_top': r_top, 'r_base': r_base, 'r_conn': r_conn, 'h_conn': h_conn, 'ang_sup': ang_sup}
         return {'r_top': r_top, 'r_base': r_base}
-    elif modelo in ["Quadrado", "Retangular", "Chato"]:
+    elif modelo in ["Quadrado", "Retangular"]:
         col1, = st.columns(1)
         r_cantos = col1.number_input("Raio dos Cantos (mm)", value=0.50, step=0.05, format="%.2f", key=f"{prefixo}_rcantos")
         return {'r_cantos': r_cantos}
-    elif modelo == "Redondo":
+    # O modelo Chato não precisa de input de raio, ele herda a espessura automaticamente. O Redondo também não precisa.
+    elif modelo in ["Redondo", "Chato"]:
         return {}
 
 if modo == "Individual":
@@ -433,8 +445,8 @@ submit_button = st.button("Atualizar Desenho", type="primary", use_container_wid
 # ==========================================
 # 4. GERAÇÃO DA FOLHA (PDF)
 # ==========================================
-if submit_button or 'app_v26_iniciado' not in st.session_state:
-    st.session_state.app_v26_iniciado = True
+if submit_button or 'app_v27_iniciado' not in st.session_state:
+    st.session_state.app_v27_iniciado = True
 
 def processar_geometria(modelo, kwargs):
     if modelo == "Triangular":
@@ -445,8 +457,11 @@ def processar_geometria(modelo, kwargs):
         return gerar_perfil_redondo(w_global)
     elif modelo == "Quadrado":
         return gerar_perfil_retangular(w_global, w_global, kwargs.get('r_cantos', 0.0))
-    elif modelo in ["Retangular", "Chato"]:
+    elif modelo == "Retangular":
         return gerar_perfil_retangular(w_global, h_global, kwargs.get('r_cantos', 0.0))
+    elif modelo == "Chato":
+        # A física da Barra Chata com canto redondo exige R = Espessura/2
+        return gerar_perfil_retangular(w_global, h_global, h_global / 2.0)
 
 def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
     if modelo == "Triangular":
@@ -457,8 +472,12 @@ def plotar_geometria(ax, modelo, poly, ang, centros, tangentes, kwargs):
         desenhar_redondo(ax, poly, w_global, w_global, h_global)
     elif modelo == "Quadrado":
         desenhar_retangular(ax, poly, w_global, w_global, w_global, h_global, kwargs)
-    elif modelo in ["Retangular", "Chato"]:
+    elif modelo == "Retangular":
         desenhar_retangular(ax, poly, w_global, h_global, w_global, h_global, kwargs)
+    elif modelo == "Chato":
+        kwargs_copy = kwargs.copy()
+        kwargs_copy['r_cantos'] = h_global / 2.0
+        desenhar_retangular(ax, poly, w_global, h_global, w_global, h_global, kwargs_copy)
 
 titulo_doc = ""
 
